@@ -1,0 +1,19 @@
+[workspace]
+members = [
+  "crates/influxive-child-svc",
+  "crates/influxive-otel",
+]
+
+[workspace.dependencies]
+dirs = "5"
+flate2 = "1"
+futures = "0.3"
+influxdb = "0.7"
+opentelemetry = { git = "https://github.com/open-telemetry/opentelemetry-rust.git", rev = "1f1a4fe0540b5df92b7cf5b289d6e89c2e1c02a8", features = [ "metrics" ] }
+reqwest = "0.11"
+sha2 = "0.10"
+tar = "0.4"
+tempfile = "3"
+tokio = "1"
+tracing = "0.1"
+zip = "0.6"

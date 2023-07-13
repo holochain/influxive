@@ -1,0 +1,22 @@
+[package]
+name = "influxive-child-svc"
+version = "0.0.1-alpha.0"
+edition = "2021"
+
+[dependencies]
+flate2 = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true, features = [ "stream" ] }
+sha2 = { workspace = true, optional = true }
+tar = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
+tokio = { workspace = true, features = [ "full" ] }
+tracing = { workspace = true }
+zip = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = [ "full" ] }
+
+[features]
+default = [ "download_binaries" ]
+download_binaries = [ "flate2", "futures", "reqwest", "sha2", "tar", "tempfile", "zip" ]
