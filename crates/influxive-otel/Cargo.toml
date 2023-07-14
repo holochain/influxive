@@ -16,4 +16,4 @@ opentelemetry_api = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
-tokio = { worspace = true }
+tokio = { workspace = true }

@@ -11,8 +11,12 @@ publish:
 		influxive-child-svc) \
 			export MANIFEST="./crates/influxive-child-svc/Cargo.toml"; \
 			;; \
+		influxive-otel) \
+			export MANIFEST="./crates/influxive-otel/Cargo.toml"; \
+			;; \
 		*) \
 			echo "USAGE: make publish crate=influxive-child-svc"; \
+			echo "USAGE: make publish crate=influxive-otel"; \
 			exit 1; \
 			;; \
 	esac; \
@@ -34,6 +38,7 @@ static: docs tools
 
 docs: tools
 	cargo rdme --force -w influxive-child-svc
+	cargo rdme --force -w influxive-otel
 
 tools: tool_rust tool_fmt tool_clippy tool_readme
 
