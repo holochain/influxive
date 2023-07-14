@@ -49,7 +49,7 @@ async fn sanity() {
 
     // make sure the result contains at least 10 of the entries
     let line_count = result.split("\n").count();
-    assert_eq!(10, line_count, "{result}");
+    assert!(line_count >= 10, "{result}");
 
     drop(i);
     tmp.close().unwrap();
