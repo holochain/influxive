@@ -3,31 +3,41 @@
 #![deny(unsafe_code)]
 //! Run influxd as a child process.
 
-const LINUX_X86_64_CLI_URL: &str = "https://dl.influxdata.com/influxdb/releases/influxdb2-client-2.7.3-linux-amd64.tar.gz";
-const LINUX_X86_64_CLI_SHA: &str = "a266f304547463b6bc7886bf45e37d252bcc0ceb3156ab8d78c52561558fbfe6";
-const LINUX_X86_64_DB_URL: &str = "https://dl.influxdata.com/influxdb/releases/influxdb2-2.7.1-linux-amd64.tar.gz";
-const LINUX_X86_64_DB_SHA: &str = "e5ecfc15c35af55641ffc92680ad0fb043aa51a942944252e214e2a551c60ebb";
-
+use std::borrow::Cow;
 use std::io::Result;
+use std::sync::Arc;
 
-macro_rules! cmd_output {
-    ($cmd:expr $(,$arg:expr)*) => {async {
-        let mut proc = tokio::process::Command::new($cmd);
-        proc.kill_on_drop(true);
-        $(
-            proc.arg($arg);
-        )*
-        let output = proc.output().await?;
-        ::std::io::Result::Ok(String::from_utf8_lossy(&output.stdout).to_string())
-    }.await}
-}
+#[cfg(feature = "download_binaries")]
+mod download_binaries;
+#[cfg(feature = "download_binaries")]
+use download_binaries::download_influx;
 
+mod types;
+pub use types::*;
 
 fn err_other<E>(error: E) -> std::io::Error
 where
     E: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
     std::io::Error::new(std::io::ErrorKind::Other, error.into())
+}
+
+macro_rules! cmd_output {
+    ($cmd:expr $(,$arg:expr)*) => {async {
+        let mut proc = tokio::process::Command::new($cmd);
+        proc.stdin(std::process::Stdio::null());
+        proc.kill_on_drop(true);
+        $(
+            proc.arg($arg);
+        )*
+        let output = proc.output().await?;
+        let err = String::from_utf8_lossy(&output.stderr);
+        if !err.is_empty() {
+            Err(err_other(err.to_string()))
+        } else {
+            Ok(String::from_utf8_lossy(&output.stdout).to_string())
+        }
+    }.await}
 }
 
 /// Configure the child process.
@@ -70,6 +80,17 @@ pub struct Config {
     /// Retention timespan.
     /// Defaults to `72h`.
     pub retention: String,
+
+    /// Time span over which metric writes will be buffered before
+    /// actually being written to InfluxDB to facilitate batching.
+    /// Defaults to `100ms`.
+    pub metric_write_batch_duration: std::time::Duration,
+
+    /// The size of the metric write batch buffer. If a metric to be
+    /// writen would go beyond this buffer, it will instead be ignored with
+    /// a trace written at "debug" level.
+    /// Defaults to `4096`.
+    pub metric_write_batch_buffer_size: usize,
 }
 
 impl Default for Config {
@@ -84,6 +105,8 @@ impl Default for Config {
             org: "influxive".to_string(),
             bucket: "influxive".to_string(),
             retention: "72h".to_string(),
+            metric_write_batch_duration: std::time::Duration::from_millis(100),
+            metric_write_batch_buffer_size: 4096,
         }
     }
 }
@@ -96,6 +119,8 @@ pub struct Influxive {
     host: String,
     token: String,
     _child: tokio::process::Child,
+    influx_path: std::path::PathBuf,
+    write_send: tokio::sync::mpsc::Sender<Metric>,
 }
 
 impl Influxive {
@@ -120,7 +145,7 @@ impl Influxive {
         let mut configs_path = std::path::PathBuf::from(&db_path);
         configs_path.push("configs");
 
-        cmd_output!(
+        if let Err(err) = cmd_output!(
             &influx_path,
             "setup",
             "--json",
@@ -139,21 +164,77 @@ impl Influxive {
             "--retention",
             &config.retention,
             "--force"
-        )?;
+        ) {
+            let repr = format!("{err:?}");
+            if !repr.contains("Error: instance has already been set up") {
+                return Err(err);
+            }
+        }
 
         let token = tokio::fs::read(&configs_path).await?;
         let token = String::from_utf8_lossy(&token);
         let mut token = token.split("token = \"");
         token.next().unwrap();
         let token = token.next().unwrap();
-        let mut token = token.split("\"");
+        let mut token = token.split('\"');
         let token = token.next().unwrap().to_string();
+
+        let client =
+            influxdb::Client::new(&host, "influxive").with_token(&token);
+
+        let (write_send, mut write_recv) =
+            tokio::sync::mpsc::channel(config.metric_write_batch_buffer_size);
+
+        let write_sleep_dur = config.metric_write_batch_duration;
+        tokio::task::spawn(async move {
+            let mut q = Vec::new();
+
+            loop {
+                tokio::time::sleep(write_sleep_dur).await;
+
+                loop {
+                    match write_recv.try_recv() {
+                        Ok(Metric {
+                            timestamp,
+                            name,
+                            fields,
+                            tags,
+                        }) => {
+                            let mut query = influxdb::WriteQuery::new(
+                                influxdb::Timestamp::Nanoseconds(
+                                    timestamp
+                                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                                        .unwrap()
+                                        .as_nanos()
+                                ),
+                                name.into_string(),
+                            );
+                            for (k, v) in fields {
+                                query = query.add_field(k.into_string(), v.into_type());
+                            }
+                            for (k, v) in tags {
+                                query = query.add_tag(k.into_string(), v.into_type());
+                            }
+                            q.push(query)
+                        }
+                        Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
+                        Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => return,
+                    }
+                }
+
+                if let Err(err) = client.query(std::mem::take(&mut q)).await {
+                    tracing::warn!(?err, "write metrics error");
+                }
+            }
+        });
 
         Ok(Self {
             config,
             host,
             token,
             _child,
+            influx_path,
+            write_send,
         })
     }
 
@@ -170,6 +251,50 @@ impl Influxive {
     /// Get the operator token of this running influxd instance.
     pub fn get_token(&self) -> &str {
         &self.token
+    }
+
+    /// "Ping" the running InfluxDB instance, returning the result.
+    pub async fn ping(&self) -> Result<()> {
+        cmd_output!(&self.influx_path, "ping", "--host", &self.host)?;
+        Ok(())
+    }
+
+    /// Run a query against the running InfluxDB instance.
+    /// Note, if you are writing metrics, prefer the 'write_metric' api
+    /// as that will be more efficient.
+    pub async fn query<Q: Into<StringType>>(
+        &self,
+        flux_query: Q,
+    ) -> Result<String> {
+        cmd_output!(
+            &self.influx_path,
+            "query",
+            "--raw",
+            "--org",
+            &self.config.org,
+            "--host",
+            &self.host,
+            "--token",
+            &self.token,
+            flux_query.into().into_string()
+        )
+    }
+
+    /// Log a metric to the running InfluxDB instance.
+    /// Note, this function itself is an efficiency abstraction,
+    /// which will return quickly if there is space in the buffer.
+    /// The actual call to log the metrics will be made a configurable
+    /// timespan later to facilitate batching of metric writes.
+    pub fn write_metric(&self, metric: Metric) {
+        match self.write_send.try_send(metric) {
+            Ok(()) => (),
+            Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                tracing::warn!("metrics overloaded, dropping metric");
+            }
+            Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
+                unreachable!("should be impossible, sender task panic?");
+            }
+        }
     }
 }
 
@@ -188,13 +313,11 @@ async fn validate_influx(
         if let Some(path) = &config.influx_path {
             bin_path = path.clone();
         }
-    } else {
-        if let Some(path) = &config.influxd_path {
-            bin_path = path.clone();
-        }
+    } else if let Some(path) = &config.influxd_path {
+        bin_path = path.clone();
     };
 
-    let ver = match cmd_output!(&bin_path, "version") {
+    let _ver = match cmd_output!(&bin_path, "version") {
         Ok(ver) => ver,
         Err(err) => {
             let mut err_list = Vec::new();
@@ -209,9 +332,14 @@ async fn validate_influx(
                         match cmd_output!(&bin_path, "version") {
                             Ok(ver) => ver,
                             Err(err) => {
-                                err_list.push(err_other(format!("failed to run {bin_path:?}")));
+                                err_list.push(err_other(format!(
+                                    "failed to run {bin_path:?}"
+                                )));
                                 err_list.push(err);
-                                return Err(err_other(format!("{:?}", err_list)));
+                                return Err(err_other(format!(
+                                    "{:?}",
+                                    err_list
+                                )));
                             }
                         }
                     }
@@ -230,113 +358,7 @@ async fn validate_influx(
         }
     };
 
-    println!("{ver}");
-
     Ok(bin_path)
-}
-
-#[cfg(target_os = "linux")]
-const TGT_OS: &str = "linux";
-#[cfg(not(any(target_os = "linux")))]
-const TGT_OS: &str = "other";
-
-#[cfg(target_arch = "x86_64")]
-const TGT_ARCH: &str = "x86_64";
-#[cfg(not(any(target_arch = "x86_64")))]
-const TGT_ARCH: &str = "other";
-
-#[cfg(feature = "download_binaries")]
-async fn download_influx(
-    db_path: &std::path::Path,
-    is_cli: bool,
-) -> Result<std::path::PathBuf> {
-    use tokio::io::AsyncSeekExt;
-    use std::io::Seek;
-
-    struct Target {
-        pub url: &'static str,
-        pub _sha: &'static str,
-        pub unpack_path: std::path::PathBuf,
-        pub final_path: std::path::PathBuf,
-    }
-
-    let mut target = None;
-
-    if TGT_OS == "linux" && TGT_ARCH == "x86_64" {
-        if is_cli {
-            let url = LINUX_X86_64_CLI_URL;
-            let _sha = LINUX_X86_64_CLI_SHA;
-            let mut unpack_path = std::path::PathBuf::from(db_path);
-            unpack_path.push("influx_unpack");
-            let mut final_path = unpack_path.clone();
-            final_path.push("influx");
-            target = Some(Target {
-                url,
-                _sha,
-                unpack_path,
-                final_path,
-            });
-        } else {
-            let url = LINUX_X86_64_DB_URL;
-            let _sha = LINUX_X86_64_DB_SHA;
-            let mut unpack_path = std::path::PathBuf::from(db_path);
-            unpack_path.push("influxd_unpack");
-            let mut final_path = unpack_path.clone();
-            final_path.push("influxdb2_linux_amd64");
-            final_path.push("influxd");
-            target = Some(Target {
-                url,
-                _sha,
-                unpack_path,
-                final_path,
-            });
-        }
-    }
-
-    let Target { url, _sha, unpack_path, final_path } = match target {
-        Some(t) => t,
-        None => {
-            return Err(err_other(format!("cannot download influxd for {TGT_OS} {TGT_ARCH}")));
-        }
-    };
-
-    if let Ok(true) = tokio::fs::try_exists(&final_path).await {
-        return Ok(final_path);
-    }
-
-    let file = tempfile::tempfile()?;
-    let mut file = tokio::fs::File::from_std(file);
-
-    let mut data = reqwest::get(url).await.map_err(err_other)?.bytes_stream();
-
-    use futures::stream::StreamExt;
-    while let Some(bytes) = data.next().await {
-        let bytes = bytes.map_err(err_other)?;
-        let mut reader: &[u8] = &bytes;
-        tokio::io::copy(&mut reader, &mut file).await?;
-    }
-
-    file.rewind().await?;
-    let mut file = file.into_std().await;
-
-    let big_file = tempfile::tempfile()?;
-
-    let big_file = tokio::task::spawn_blocking(move || {
-        let mut decoder = flate2::write::GzDecoder::new(big_file);
-        std::io::copy(&mut file, &mut decoder)?;
-        let mut big_file = decoder.finish()?;
-        big_file.rewind()?;
-        std::io::Result::Ok(big_file)
-    }).await??;
-
-    let _ = tokio::fs::remove_dir_all(&unpack_path).await;
-
-    tokio::task::spawn_blocking(move || {
-        let mut archive = tar::Archive::new(big_file);
-        archive.unpack(unpack_path)
-    }).await??;
-
-    Ok(final_path)
 }
 
 async fn spawn_influxd(
@@ -365,9 +387,9 @@ async fn spawn_influxd(
 
     let proc_err = format!("{proc:?}");
 
-    let mut child = proc.spawn().map_err(|err| {
-        err_other(format!("{proc_err}: {err:?}"))
-    })?;
+    let mut child = proc
+        .spawn()
+        .map_err(|err| err_other(format!("{proc_err}: {err:?}")))?;
 
     let stdout = child.stdout.take().unwrap();
     let mut reader = tokio::io::BufReader::new(stdout).lines();
@@ -395,11 +417,4 @@ async fn spawn_influxd(
 }
 
 #[cfg(test)]
-mod test {
-    use super::*;
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn sanity() {
-        let _i = Influxive::new(Config::default()).await.unwrap();
-    }
-}
+mod test;

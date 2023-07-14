@@ -2,10 +2,19 @@
 name = "influxive-child-svc"
 version = "0.0.1-alpha.0"
 edition = "2021"
+description = "Run influxd as a child process"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/holochain/influxive"
+documentation = "https://docs.rs/influxie-child-svc"
+authors = [ "Holochain Core Dev Team <devcore@holochain.org>" ]
+keywords = ["metrics"]
+categories = ["development-tools"]
 
 [dependencies]
 flate2 = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
+hex-literal = { workspace = true, optional = true }
+influxdb = { workspace = true }
 reqwest = { workspace = true, optional = true, features = [ "stream" ] }
 sha2 = { workspace = true, optional = true }
 tar = { workspace = true, optional = true }
@@ -14,9 +23,9 @@ tokio = { workspace = true, features = [ "full" ] }
 tracing = { workspace = true }
 zip = { workspace = true, optional = true }
 
-[dev-dependencies]
-tokio = { workspace = true, features = [ "full" ] }
-
 [features]
 default = [ "download_binaries" ]
-download_binaries = [ "flate2", "futures", "reqwest", "sha2", "tar", "tempfile", "zip" ]
+
+# compiles in the ability to download release influxd and influx binaries
+# as a fallback incase they are not found on the path
+download_binaries = [ "flate2", "futures", "hex-literal", "reqwest", "sha2", "tar", "tempfile", "zip" ]

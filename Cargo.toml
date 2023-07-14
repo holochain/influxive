@@ -8,6 +8,7 @@ members = [
 dirs = "5"
 flate2 = "1"
 futures = "0.3"
+hex-literal = "0.4"
 influxdb = "0.7"
 opentelemetry = { git = "https://github.com/open-telemetry/opentelemetry-rust.git", rev = "1f1a4fe0540b5df92b7cf5b289d6e89c2e1c02a8", features = [ "metrics" ] }
 reqwest = "0.11"
