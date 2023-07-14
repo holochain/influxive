@@ -54,7 +54,12 @@ impl<T: std::fmt::Display + Into<DataType>> InfluxiveUniMetric<T> {
 impl<T: std::fmt::Display + Into<DataType>>
     opentelemetry_api::metrics::SyncCounter<T> for InfluxiveUniMetric<T>
 {
-    fn add(&self, value: T, attributes: &[opentelemetry_api::KeyValue]) {
+    fn add(
+        &self,
+        _cx: &opentelemetry_api::Context,
+        value: T,
+        attributes: &[opentelemetry_api::KeyValue],
+    ) {
         self.report(value, attributes)
     }
 }
@@ -62,7 +67,12 @@ impl<T: std::fmt::Display + Into<DataType>>
 impl<T: std::fmt::Display + Into<DataType>>
     opentelemetry_api::metrics::SyncHistogram<T> for InfluxiveUniMetric<T>
 {
-    fn record(&self, value: T, attributes: &[opentelemetry_api::KeyValue]) {
+    fn record(
+        &self,
+        _cx: &opentelemetry_api::Context,
+        value: T,
+        attributes: &[opentelemetry_api::KeyValue],
+    ) {
         self.report(value, attributes)
     }
 }

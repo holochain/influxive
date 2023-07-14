@@ -11,7 +11,7 @@ futures = "0.3"
 hex-literal = "0.4"
 influxdb = "0.7"
 influxive-child-svc = { version = "0.0.1-alpha.0", path = "crates/influxive-child-svc" }
-opentelemetry_api = { git = "https://github.com/open-telemetry/opentelemetry-rust.git", rev = "1f1a4fe0540b5df92b7cf5b289d6e89c2e1c02a8", features = [ "metrics" ] }
+opentelemetry_api = { version = "0.20.0-beta.1", features = [ "metrics" ], package = "ts_opentelemetry_api" }
 reqwest = "0.11"
 sha2 = "0.10"
 tar = "0.4"

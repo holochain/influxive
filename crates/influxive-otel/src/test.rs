@@ -33,7 +33,8 @@ async fn sanity() {
     for _ in 0..12 {
         tokio::time::sleep(std::time::Duration::from_millis(1)).await;
 
-        metric.record(last_time.elapsed().as_secs_f64(), &[]);
+        let cx = opentelemetry_api::Context::new();
+        metric.record(&cx, last_time.elapsed().as_secs_f64(), &[]);
 
         last_time = std::time::Instant::now();
     }
