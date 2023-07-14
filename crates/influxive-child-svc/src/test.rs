@@ -35,7 +35,7 @@ async fn sanity() {
         last_time = std::time::Instant::now();
     }
 
-    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
 
     let result = i
         .query(
