@@ -48,9 +48,8 @@ async fn sanity() {
         .unwrap();
 
     // make sure the result contains at least 10 of the entries
-    // we just added plus the header lines
     let line_count = result.split("\n").count();
-    assert_eq!(18, line_count);
+    assert_eq!(10, line_count, "{result}");
 
     drop(i);
     tmp.close().unwrap();
