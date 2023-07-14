@@ -52,5 +52,7 @@ async fn sanity() {
     assert!(line_count >= 10, "{result}");
 
     drop(i);
-    tmp.close().unwrap();
+
+    // okay if this fails on windows...
+    let _ = tmp.close();
 }
