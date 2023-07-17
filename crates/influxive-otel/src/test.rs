@@ -4,8 +4,6 @@ use super::*;
 async fn sanity() {
     let tmp = tempfile::tempdir().unwrap();
 
-    const METRIC: &'static str = "my.metric";
-
     let i = Arc::new(
         Influxive::new(Config {
             influxd_path: Some("bad".into()),
@@ -25,35 +23,93 @@ async fn sanity() {
     let meter_provider = InfluxiveMeterProvider::new(i.clone());
     opentelemetry_api::global::set_meter_provider(meter_provider);
 
-    let meter = opentelemetry_api::global::meter(METRIC);
-    let metric = meter.f64_histogram(METRIC).init();
+    let meter = opentelemetry_api::global::meter("my_metrics");
 
-    let mut last_time = std::time::Instant::now();
+    let m_cnt_f64 = meter.f64_counter("m_cnt_f64").init();
+    let m_hist_f64 = meter.f64_histogram("m_hist_f64").init();
+    let m_obs_cnt_f64 = meter.f64_observable_counter("m_obs_cnt_f64").init();
+    let m_obs_g_f64 = meter.f64_observable_gauge("m_obs_g_f64").init();
+    let m_obs_ud_f64 =
+        meter.f64_observable_up_down_counter("m_obs_ud_f64").init();
+    let m_ud_f64 = meter.f64_up_down_counter("m_ud_f64").init();
+
+    let m_hist_i64 = meter.i64_histogram("m_hist_i64").init();
+    let m_obs_g_i64 = meter.i64_observable_gauge("m_obs_g_i64").init();
+    let m_obs_ud_i64 =
+        meter.i64_observable_up_down_counter("m_obs_ud_i64").init();
+    let m_ud_i64 = meter.i64_up_down_counter("m_ud_i64").init();
+
+    let m_cnt_u64 = meter.u64_counter("m_cnt_u64").init();
+    let m_hist_u64 = meter.u64_histogram("m_hist_u64").init();
+    let m_obs_cnt_u64 = meter.u64_observable_counter("m_obs_cnt_u64").init();
+    let m_obs_g_u64 = meter.u64_observable_gauge("m_obs_g_u64").init();
 
     for _ in 0..12 {
         tokio::time::sleep(std::time::Duration::from_millis(1)).await;
 
         let cx = opentelemetry_api::Context::new();
-        metric.record(&cx, last_time.elapsed().as_secs_f64(), &[]);
 
-        last_time = std::time::Instant::now();
+        macro_rules! obs {
+            ($n:ident, $f:ident, $v:literal) => {{
+                let $n = $n.clone();
+                meter
+                    .register_callback(&[$n.as_any()], move |obs| {
+                        obs.$f(&$n, $v, &[])
+                    })
+                    .unwrap()
+                    .unregister()
+                    .unwrap();
+            }};
+        }
+
+        m_cnt_f64.add(&cx, 1.1, &[]);
+        m_hist_f64.record(&cx, 1.1, &[]);
+        obs!(m_obs_cnt_f64, observe_f64, 1.1);
+        obs!(m_obs_g_f64, observe_f64, -1.1);
+        obs!(m_obs_ud_f64, observe_f64, -1.1);
+        m_ud_f64.add(&cx, -1.1, &[]);
+
+        m_hist_i64.record(&cx, -1, &[]);
+        obs!(m_obs_g_i64, observe_i64, -1);
+        obs!(m_obs_ud_i64, observe_i64, -1);
+        m_ud_i64.add(&cx, -1, &[]);
+
+        m_cnt_u64.add(&cx, 1, &[]);
+        m_hist_u64.record(&cx, 1, &[]);
+        obs!(m_obs_cnt_u64, observe_u64, 1);
+        obs!(m_obs_g_u64, observe_u64, 1);
     }
 
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    //tokio::time::sleep(std::time::Duration::from_secs(20000)).await;
 
     let result = i
         .query(
             r#"from(bucket: "influxive")
 |> range(start: -15m, stop: now())
-|> filter(fn: (r) => r["_measurement"] == "my.metric")
-|> filter(fn: (r) => r["_field"] == "value")"#,
+"#,
         )
         .await
         .unwrap();
 
-    // make sure the result contains at least 10 of the entries
-    let line_count = result.split("\n").count();
-    assert!(line_count >= 10, "{result}");
+    println!("{result}");
+
+    assert_eq!(12, result.matches("m_cnt_f64").count());
+    assert_eq!(12, result.matches("m_hist_f64").count());
+    assert_eq!(12, result.matches("m_obs_cnt_f64").count());
+    assert_eq!(12, result.matches("m_obs_g_f64").count());
+    assert_eq!(12, result.matches("m_obs_ud_f64").count());
+    assert_eq!(12, result.matches("m_ud_f64").count());
+
+    assert_eq!(12, result.matches("m_hist_i64").count());
+    assert_eq!(12, result.matches("m_obs_g_i64").count());
+    assert_eq!(12, result.matches("m_obs_ud_i64").count());
+    assert_eq!(12, result.matches("m_ud_i64").count());
+
+    assert_eq!(12, result.matches("m_cnt_u64").count());
+    assert_eq!(12, result.matches("m_hist_u64").count());
+    assert_eq!(12, result.matches("m_obs_cnt_u64").count());
+    assert_eq!(12, result.matches("m_obs_g_u64").count());
 
     drop(i);
 
