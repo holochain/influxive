@@ -9,8 +9,8 @@ use std::sync::Arc;
 struct InfluxiveUniMetric<T: std::fmt::Display + Into<DataType>> {
     influxive: Arc<Influxive>,
     name: std::borrow::Cow<'static, str>,
-    description: Option<std::borrow::Cow<'static, str>>,
-    unit: Option<opentelemetry_api::metrics::Unit>,
+    //description: Option<std::borrow::Cow<'static, str>>,
+    //unit: Option<opentelemetry_api::metrics::Unit>,
     _p: std::marker::PhantomData<T>,
 }
 
@@ -18,23 +18,29 @@ impl<T: std::fmt::Display + Into<DataType>> InfluxiveUniMetric<T> {
     pub fn new(
         influxive: Arc<Influxive>,
         name: std::borrow::Cow<'static, str>,
-        description: Option<std::borrow::Cow<'static, str>>,
-        unit: Option<opentelemetry_api::metrics::Unit>,
+        _description: Option<std::borrow::Cow<'static, str>>,
+        _unit: Option<opentelemetry_api::metrics::Unit>,
     ) -> Self {
         Self {
             influxive,
             name,
-            description,
-            unit,
+            //description,
+            //unit,
             _p: std::marker::PhantomData,
         }
     }
 
     fn report(&self, value: T, attributes: &[opentelemetry_api::KeyValue]) {
+        // otel metrics are largely a single measurement... so
+        // just applying them to the generic "value" name in influx.
         let mut metric =
             Metric::new(std::time::SystemTime::now(), self.name.to_string())
                 .with_field("value", value);
 
+        // these are largely not useful when viewing influx data
+        // recommend just using descriptive metric names with
+        // units in the name itself.
+        /*
         if let Some(description) = &self.description {
             metric = metric.with_tag("description", description.to_string());
         }
@@ -42,7 +48,10 @@ impl<T: std::fmt::Display + Into<DataType>> InfluxiveUniMetric<T> {
         if let Some(unit) = &self.unit {
             metric = metric.with_tag("unit", unit.as_str().to_string());
         }
+        */
 
+        // everything else is a tag? would these be better as fields?
+        // some kind of naming convention to pick between the two??
         for kv in attributes {
             metric = metric.with_tag(kv.key.to_string(), kv.value.to_string());
         }

@@ -1,5 +1,8 @@
 use super::*;
 
+const DASHBOARD_TEMPLATE: &[u8] =
+    include_bytes!("test_dashboard_template.json");
+
 #[tokio::test(flavor = "multi_thread")]
 async fn sanity() {
     let tmp = tempfile::tempdir().unwrap();
@@ -20,6 +23,10 @@ async fn sanity() {
     println!("{}", i.get_host());
 
     i.ping().await.unwrap();
+
+    println!("{}", i.list_dashboards().await.unwrap());
+    println!("{}", i.apply(DASHBOARD_TEMPLATE).await.unwrap());
+    println!("{}", i.list_dashboards().await.unwrap());
 
     let mut last_time = std::time::Instant::now();
 

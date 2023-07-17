@@ -10,7 +10,7 @@ flate2 = "1"
 futures = "0.3"
 hex-literal = "0.4"
 influxdb = "0.7"
-influxive-child-svc = { version = "0.0.1-alpha.0", path = "crates/influxive-child-svc" }
+influxive-child-svc = { version = "0.0.1-alpha.1", path = "crates/influxive-child-svc" }
 opentelemetry_api = { version = "0.20.0-beta.1", features = [ "metrics" ], package = "ts_opentelemetry_api" }
 reqwest = "0.11"
 sha2 = "0.10"

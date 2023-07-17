@@ -280,6 +280,58 @@ impl Influxive {
         )
     }
 
+    /// List the existing dashboard data in the running InfluxDB instance.
+    pub async fn list_dashboards(&self) -> Result<String> {
+        cmd_output!(
+            &self.influx_path,
+            "dashboards",
+            "--org",
+            &self.config.org,
+            "--host",
+            &self.host,
+            "--token",
+            &self.token,
+            "--json"
+        )
+    }
+
+    /// Apply a template to the running InfluxDB instance.
+    pub async fn apply(&self, template: &[u8]) -> Result<String> {
+        use tokio::io::AsyncWriteExt;
+
+        let (file, tmp) = tempfile::Builder::new()
+            .suffix(".json")
+            .tempfile()?
+            .into_parts();
+        let mut file = tokio::fs::File::from_std(file);
+
+        file.write_all(template).await?;
+        file.shutdown().await?;
+
+        let result = cmd_output!(
+            &self.influx_path,
+            "apply",
+            "--org",
+            &self.config.org,
+            "--host",
+            &self.host,
+            "--token",
+            &self.token,
+            "--json",
+            "--force",
+            "yes",
+            "--file",
+            &tmp
+        );
+
+        drop(file);
+
+        // Okay if this fails on windows
+        let _ = tmp.close();
+
+        result
+    }
+
     /// Log a metric to the running InfluxDB instance.
     /// Note, this function itself is an efficiency abstraction,
     /// which will return quickly if there is space in the buffer.
