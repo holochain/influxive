@@ -81,7 +81,6 @@ async fn sanity() {
     }
 
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    //tokio::time::sleep(std::time::Duration::from_secs(20000)).await;
 
     let result = i
         .query(
@@ -111,8 +110,10 @@ async fn sanity() {
     assert_eq!(12, result.matches("m_obs_cnt_u64").count());
     assert_eq!(12, result.matches("m_obs_g_u64").count());
 
+    println!("about to drop influxive-child-svc");
     drop(i);
 
+    println!("about to close tempfile::tempdir");
     // okay if this fails on windows...
     let _ = tmp.close();
 }
