@@ -118,7 +118,7 @@ pub struct Influxive {
     config: Config,
     host: String,
     token: String,
-    _child: tokio::process::Child,
+    child: std::sync::Mutex<Option<tokio::process::Child>>,
     influx_path: std::path::PathBuf,
     write_send: tokio::sync::mpsc::Sender<Metric>,
 }
@@ -138,7 +138,7 @@ impl Influxive {
 
         let influx_path = validate_influx(&db_path, &config, true).await?;
 
-        let (_child, port) = spawn_influxd(&db_path, &influxd_path).await?;
+        let (child, port) = spawn_influxd(&db_path, &influxd_path).await?;
 
         let host = format!("http://127.0.0.1:{port}");
 
@@ -232,10 +232,15 @@ impl Influxive {
             config,
             host,
             token,
-            _child,
+            child: std::sync::Mutex::new(Some(child)),
             influx_path,
             write_send,
         })
+    }
+
+    /// Shut down the child process. Further calls to it should error.
+    pub fn shutdown(&self) {
+        drop(self.child.lock().unwrap().take());
     }
 
     /// Get the config this instance was created with.
