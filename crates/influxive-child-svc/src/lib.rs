@@ -369,7 +369,7 @@ async fn validate_influx(
         bin_path = path.clone();
     };
 
-    let _ver = match cmd_output!(&bin_path, "version") {
+    let ver = match cmd_output!(&bin_path, "version") {
         Ok(ver) => ver,
         Err(err) => {
             let mut err_list = Vec::new();
@@ -409,6 +409,13 @@ async fn validate_influx(
             }
         }
     };
+
+    // alas, the cli prints out the unhelpful version "dev".
+    if is_cli && !ver.contains("build_date: 2023-04-28T14:24:14Z") {
+        return Err(err_other(format!("invalid build_date: {ver}")));
+    } else if !is_cli && !ver.contains("InfluxDB v2.7.1") {
+        return Err(err_other(format!("invalid version: {ver}")));
+    }
 
     Ok(bin_path)
 }
