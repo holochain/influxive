@@ -3,14 +3,14 @@
 #![deny(unsafe_code)]
 //! Opentelemetry metrics bindings for influxive-child-svc.
 
-use influxive_child_svc::*;
+use influxive_core::*;
 use std::sync::Arc;
 
 struct InfluxiveUniMetric<
     T: 'static + std::fmt::Display + Into<DataType> + Send + Sync,
 > {
     this: std::sync::Weak<Self>,
-    influxive: Arc<Influxive>,
+    influxive: Arc<dyn MetricWriter + 'static + Send + Sync>,
     name: std::borrow::Cow<'static, str>,
     //description: Option<std::borrow::Cow<'static, str>>,
     //unit: Option<opentelemetry_api::metrics::Unit>,
@@ -21,7 +21,7 @@ impl<T: 'static + std::fmt::Display + Into<DataType> + Send + Sync>
     InfluxiveUniMetric<T>
 {
     pub fn new(
-        influxive: Arc<Influxive>,
+        influxive: Arc<dyn MetricWriter + 'static + Send + Sync>,
         name: std::borrow::Cow<'static, str>,
         _description: Option<std::borrow::Cow<'static, str>>,
         _unit: Option<opentelemetry_api::metrics::Unit>,
@@ -126,7 +126,9 @@ impl<T: 'static + std::fmt::Display + Into<DataType> + Send + Sync>
     }
 }
 
-struct InfluxiveInstrumentProvider(Arc<Influxive>);
+struct InfluxiveInstrumentProvider(
+    Arc<dyn MetricWriter + 'static + Send + Sync>,
+);
 
 impl opentelemetry_api::metrics::InstrumentProvider
     for InfluxiveInstrumentProvider
@@ -375,12 +377,16 @@ impl opentelemetry_api::metrics::InstrumentProvider
 }
 
 /// InfluxiveDB Opentelemetry Meter Provider.
-pub struct InfluxiveMeterProvider(Arc<Influxive>);
+pub struct InfluxiveMeterProvider(
+    Arc<dyn MetricWriter + 'static + Send + Sync>,
+);
 
 impl InfluxiveMeterProvider {
     /// Construct a new InfluxiveMeterProvider instance with a given
     /// "Influxive" InfluxiveDB child process connector.
-    pub fn new(influxive: Arc<Influxive>) -> Self {
+    pub fn new(
+        influxive: Arc<dyn MetricWriter + 'static + Send + Sync>,
+    ) -> Self {
         Self(influxive)
     }
 }

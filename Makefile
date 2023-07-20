@@ -8,15 +8,27 @@ all: test
 
 publish:
 	@case "$(crate)" in \
+		influxive-core) \
+			export MANIFEST="./crates/influxive-core/Cargo.toml"; \
+			;; \
+		influxive-downloader) \
+			export MANIFEST="./crates/influxive-downloader/Cargo.toml"; \
+			;; \
 		influxive-child-svc) \
 			export MANIFEST="./crates/influxive-child-svc/Cargo.toml"; \
 			;; \
 		influxive-otel) \
 			export MANIFEST="./crates/influxive-otel/Cargo.toml"; \
 			;; \
+		influxive) \
+			export MANIFEST="./crates/influxive/Cargo.toml"; \
+			;; \
 		*) \
+			echo "USAGE: make publish crate=influxive-core"; \
+			echo "USAGE: make publish crate=influxive-downloader"; \
 			echo "USAGE: make publish crate=influxive-child-svc"; \
 			echo "USAGE: make publish crate=influxive-otel"; \
+			echo "USAGE: make publish crate=influxive"; \
 			exit 1; \
 			;; \
 	esac; \
@@ -37,8 +49,11 @@ static: docs tools
 	@if [ "${CI}x" != "x" ]; then git diff --exit-code; fi
 
 docs: tools
+	cargo rdme --force -w influxive-core
+	cargo rdme --force -w influxive-downloader
 	cargo rdme --force -w influxive-child-svc
 	cargo rdme --force -w influxive-otel
+	cargo rdme --force -w influxive
 
 tools: tool_rust tool_fmt tool_clippy tool_readme
 

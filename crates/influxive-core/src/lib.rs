@@ -1,4 +1,19 @@
-use super::*;
+#![deny(missing_docs)]
+#![deny(warnings)]
+#![deny(unsafe_code)]
+//! Core types for influxive crates. The main point of this crate is to expose
+//! the [MetricWriter] trait to be used by downstream influxive crates.
+
+use std::borrow::Cow;
+use std::sync::Arc;
+
+/// Standin until std::io::Error::other is stablized.
+pub fn err_other<E>(error: E) -> std::io::Error
+where
+    E: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+    std::io::Error::new(std::io::ErrorKind::Other, error.into())
+}
 
 /// String type handling various string types usable by InfluxDB.
 #[derive(Debug, Clone)]
@@ -11,7 +26,8 @@ pub enum StringType {
 }
 
 impl StringType {
-    pub(crate) fn into_string(self) -> String {
+    /// Get an owned string out of this StringType.
+    pub fn into_string(self) -> String {
         match self {
             StringType::String(s) => s.into_owned(),
             StringType::ArcString(s) => s.to_string(),
@@ -52,18 +68,6 @@ pub enum DataType {
 
     /// String value.
     String(StringType),
-}
-
-impl DataType {
-    pub(crate) fn into_type(self) -> influxdb::Type {
-        match self {
-            DataType::Bool(b) => influxdb::Type::Boolean(b),
-            DataType::F64(f) => influxdb::Type::Float(f),
-            DataType::I64(i) => influxdb::Type::SignedInteger(i),
-            DataType::U64(u) => influxdb::Type::UnsignedInteger(u),
-            DataType::String(s) => influxdb::Type::Text(s.into_string()),
-        }
-    }
 }
 
 macro_rules! datatype_from_impl {
@@ -142,4 +146,13 @@ impl Metric {
         self.tags.push((name.into(), value.into()));
         self
     }
+}
+
+/// Indicates a type that is capable of writing metrics to an InfluxDB instance.
+pub trait MetricWriter: 'static + Send + Sync {
+    /// Write a metric to an InfluxDB instance. Note, this should return
+    /// immediately, perhaps by adding the metric to a memory buffer for
+    /// a different process/task/thread to actually write the metric as
+    /// determined by the concrete implementation.
+    fn write_metric(&self, metric: Metric);
 }

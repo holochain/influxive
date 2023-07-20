@@ -3,23 +3,27 @@
 #![deny(unsafe_code)]
 //! Run influxd as a child process.
 
-use std::borrow::Cow;
 use std::io::Result;
-use std::sync::Arc;
 
 #[cfg(feature = "download_binaries")]
 mod download_binaries;
-#[cfg(feature = "download_binaries")]
-use download_binaries::download_influx;
 
-mod types;
-pub use types::*;
+use influxive_core::*;
 
-fn err_other<E>(error: E) -> std::io::Error
-where
-    E: Into<Box<dyn std::error::Error + Send + Sync>>,
-{
-    std::io::Error::new(std::io::ErrorKind::Other, error.into())
+trait DataTypeExt {
+    fn into_type(self) -> influxdb::Type;
+}
+
+impl DataTypeExt for DataType {
+    fn into_type(self) -> influxdb::Type {
+        match self {
+            DataType::Bool(b) => influxdb::Type::Boolean(b),
+            DataType::F64(f) => influxdb::Type::Float(f),
+            DataType::I64(i) => influxdb::Type::SignedInteger(i),
+            DataType::U64(u) => influxdb::Type::UnsignedInteger(u),
+            DataType::String(s) => influxdb::Type::Text(s.into_string()),
+        }
+    }
 }
 
 macro_rules! cmd_output {
@@ -355,6 +359,52 @@ impl Influxive {
     }
 }
 
+impl MetricWriter for Influxive {
+    fn write_metric(&self, metric: Metric) {
+        Influxive::write_metric(self, metric);
+    }
+}
+
+#[cfg(feature = "download_binaries")]
+async fn dl_influx(
+    _db_path: &std::path::Path,
+    is_cli: bool,
+    bin_path: &mut std::path::PathBuf,
+    err_list: &mut Vec<std::io::Error>,
+) -> Option<String> {
+    let spec = if is_cli {
+        &download_binaries::DL_CLI
+    } else {
+        &download_binaries::DL_DB
+    };
+
+    if let Some(spec) = &spec {
+        match spec.download(_db_path).await {
+            Ok(path) => {
+                *bin_path = path;
+                match cmd_output!(&bin_path, "version") {
+                    Ok(ver) => return Some(ver),
+                    Err(err) => {
+                        err_list.push(err_other(format!(
+                            "failed to run {bin_path:?}"
+                        )));
+                        err_list.push(err);
+                    }
+                }
+            }
+            Err(err) => {
+                err_list.push(err_other("failed to download"));
+                err_list.push(err);
+            }
+        }
+    } else {
+        err_list
+            .push(err_other("no download configured for this target os/arch"));
+    }
+
+    None
+}
+
 async fn validate_influx(
     _db_path: &std::path::Path,
     config: &Config,
@@ -383,28 +433,13 @@ async fn validate_influx(
 
             #[cfg(feature = "download_binaries")]
             {
-                match download_influx(_db_path, is_cli).await {
-                    Ok(path) => {
-                        bin_path = path;
-                        match cmd_output!(&bin_path, "version") {
-                            Ok(ver) => ver,
-                            Err(err) => {
-                                err_list.push(err_other(format!(
-                                    "failed to run {bin_path:?}"
-                                )));
-                                err_list.push(err);
-                                return Err(err_other(format!(
-                                    "{:?}",
-                                    err_list
-                                )));
-                            }
-                        }
-                    }
-                    Err(err) => {
-                        err_list.push(err_other("failed to download"));
-                        err_list.push(err);
-                        return Err(err_other(format!("{:?}", err_list)));
-                    }
+                if let Some(ver) =
+                    dl_influx(_db_path, is_cli, &mut bin_path, &mut err_list)
+                        .await
+                {
+                    ver
+                } else {
+                    return Err(err_other(format!("{:?}", err_list)));
                 }
             }
 

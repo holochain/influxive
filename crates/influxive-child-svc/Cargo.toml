@@ -1,6 +1,6 @@
 [package]
 name = "influxive-child-svc"
-version = "0.0.1-alpha.2"
+version = "0.0.1-alpha.3"
 edition = "2021"
 description = "Run influxd as a child process"
 license = "MIT OR Apache-2.0"
@@ -11,21 +11,17 @@ keywords = ["metrics"]
 categories = ["development-tools"]
 
 [dependencies]
-flate2 = { workspace = true, optional = true }
-futures = { workspace = true, optional = true }
 hex-literal = { workspace = true, optional = true }
 influxdb = { workspace = true }
-reqwest = { workspace = true, optional = true, features = [ "stream" ] }
-sha2 = { workspace = true, optional = true }
-tar = { workspace = true, optional = true }
-tempfile = { workspace = true, optional = true }
+influxive-core = { workspace = true }
+influxive-downloader = { workspace = true, optional = true }
+tempfile = { workspace = true }
 tokio = { workspace = true, features = [ "full" ] }
 tracing = { workspace = true }
-zip = { workspace = true, optional = true }
 
 [features]
 default = [ "download_binaries" ]
 
 # compiles in the ability to download release influxd and influx binaries
 # as a fallback incase they are not found on the path
-download_binaries = [ "flate2", "futures", "hex-literal", "reqwest", "sha2", "tar", "tempfile", "zip" ]
+download_binaries = [ "hex-literal", "influxive-downloader" ]
