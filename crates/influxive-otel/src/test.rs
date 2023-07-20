@@ -3,6 +3,8 @@ use influxive_child_svc::*;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn sanity() {
+    use opentelemetry_api::metrics::MeterProvider;
+
     let tmp = tempfile::tempdir().unwrap();
 
     let i = Arc::new(
@@ -24,7 +26,15 @@ async fn sanity() {
     let meter_provider = InfluxiveMeterProvider::new(i.clone());
     opentelemetry_api::global::set_meter_provider(meter_provider);
 
-    let meter = opentelemetry_api::global::meter("my_metrics");
+    let meter = opentelemetry_api::global::meter_provider().versioned_meter(
+        "my_metrics",
+        None::<&'static str>,
+        None::<&'static str>,
+        Some(vec![opentelemetry_api::KeyValue::new(
+            "test-metric-attribute-key",
+            "test-metric-attribute-value",
+        )]),
+    );
 
     let m_cnt_f64 = meter.f64_counter("m_cnt_f64").init();
     let m_hist_f64 = meter.f64_histogram("m_hist_f64").init();

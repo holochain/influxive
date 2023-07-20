@@ -14,6 +14,7 @@ struct InfluxiveUniMetric<
     name: std::borrow::Cow<'static, str>,
     //description: Option<std::borrow::Cow<'static, str>>,
     //unit: Option<opentelemetry_api::metrics::Unit>,
+    attributes: Option<Arc<[opentelemetry_api::KeyValue]>>,
     _p: std::marker::PhantomData<T>,
 }
 
@@ -25,6 +26,7 @@ impl<T: 'static + std::fmt::Display + Into<DataType> + Send + Sync>
         name: std::borrow::Cow<'static, str>,
         _description: Option<std::borrow::Cow<'static, str>>,
         _unit: Option<opentelemetry_api::metrics::Unit>,
+        attributes: Option<Arc<[opentelemetry_api::KeyValue]>>,
     ) -> Arc<Self> {
         Arc::new_cyclic(|this| {
             Self {
@@ -33,6 +35,7 @@ impl<T: 'static + std::fmt::Display + Into<DataType> + Send + Sync>
                 name,
                 //description,
                 //unit,
+                attributes,
                 _p: std::marker::PhantomData,
             }
         })
@@ -62,6 +65,13 @@ impl<T: 'static + std::fmt::Display + Into<DataType> + Send + Sync>
         // some kind of naming convention to pick between the two??
         for kv in attributes {
             metric = metric.with_tag(kv.key.to_string(), kv.value.to_string());
+        }
+
+        if let Some(attributes) = &self.attributes {
+            for kv in attributes.iter() {
+                metric =
+                    metric.with_tag(kv.key.to_string(), kv.value.to_string());
+            }
         }
 
         self.influxive.write_metric(metric);
@@ -128,6 +138,7 @@ impl<T: 'static + std::fmt::Display + Into<DataType> + Send + Sync>
 
 struct InfluxiveInstrumentProvider(
     Arc<dyn MetricWriter + 'static + Send + Sync>,
+    Option<Arc<[opentelemetry_api::KeyValue]>>,
 );
 
 impl opentelemetry_api::metrics::InstrumentProvider
@@ -142,7 +153,13 @@ impl opentelemetry_api::metrics::InstrumentProvider
         opentelemetry_api::metrics::Counter<u64>,
     > {
         Ok(opentelemetry_api::metrics::Counter::new(
-            InfluxiveUniMetric::new(self.0.clone(), name, description, unit),
+            InfluxiveUniMetric::new(
+                self.0.clone(),
+                name,
+                description,
+                unit,
+                self.1.clone(),
+            ),
         ))
     }
 
@@ -155,7 +172,13 @@ impl opentelemetry_api::metrics::InstrumentProvider
         opentelemetry_api::metrics::Counter<f64>,
     > {
         Ok(opentelemetry_api::metrics::Counter::new(
-            InfluxiveUniMetric::new(self.0.clone(), name, description, unit),
+            InfluxiveUniMetric::new(
+                self.0.clone(),
+                name,
+                description,
+                unit,
+                self.1.clone(),
+            ),
         ))
     }
 
@@ -169,7 +192,13 @@ impl opentelemetry_api::metrics::InstrumentProvider
         opentelemetry_api::metrics::ObservableCounter<u64>,
     > {
         Ok(opentelemetry_api::metrics::ObservableCounter::new(
-            InfluxiveUniMetric::new(self.0.clone(), name, description, unit),
+            InfluxiveUniMetric::new(
+                self.0.clone(),
+                name,
+                description,
+                unit,
+                self.1.clone(),
+            ),
         ))
     }
 
@@ -183,7 +212,13 @@ impl opentelemetry_api::metrics::InstrumentProvider
         opentelemetry_api::metrics::ObservableCounter<f64>,
     > {
         Ok(opentelemetry_api::metrics::ObservableCounter::new(
-            InfluxiveUniMetric::new(self.0.clone(), name, description, unit),
+            InfluxiveUniMetric::new(
+                self.0.clone(),
+                name,
+                description,
+                unit,
+                self.1.clone(),
+            ),
         ))
     }
 
@@ -196,7 +231,13 @@ impl opentelemetry_api::metrics::InstrumentProvider
         opentelemetry_api::metrics::UpDownCounter<i64>,
     > {
         Ok(opentelemetry_api::metrics::UpDownCounter::new(
-            InfluxiveUniMetric::new(self.0.clone(), name, description, unit),
+            InfluxiveUniMetric::new(
+                self.0.clone(),
+                name,
+                description,
+                unit,
+                self.1.clone(),
+            ),
         ))
     }
 
@@ -209,7 +250,13 @@ impl opentelemetry_api::metrics::InstrumentProvider
         opentelemetry_api::metrics::UpDownCounter<f64>,
     > {
         Ok(opentelemetry_api::metrics::UpDownCounter::new(
-            InfluxiveUniMetric::new(self.0.clone(), name, description, unit),
+            InfluxiveUniMetric::new(
+                self.0.clone(),
+                name,
+                description,
+                unit,
+                self.1.clone(),
+            ),
         ))
     }
 
@@ -223,7 +270,13 @@ impl opentelemetry_api::metrics::InstrumentProvider
         opentelemetry_api::metrics::ObservableUpDownCounter<i64>,
     > {
         Ok(opentelemetry_api::metrics::ObservableUpDownCounter::new(
-            InfluxiveUniMetric::new(self.0.clone(), name, description, unit),
+            InfluxiveUniMetric::new(
+                self.0.clone(),
+                name,
+                description,
+                unit,
+                self.1.clone(),
+            ),
         ))
     }
 
@@ -237,7 +290,13 @@ impl opentelemetry_api::metrics::InstrumentProvider
         opentelemetry_api::metrics::ObservableUpDownCounter<f64>,
     > {
         Ok(opentelemetry_api::metrics::ObservableUpDownCounter::new(
-            InfluxiveUniMetric::new(self.0.clone(), name, description, unit),
+            InfluxiveUniMetric::new(
+                self.0.clone(),
+                name,
+                description,
+                unit,
+                self.1.clone(),
+            ),
         ))
     }
 
@@ -251,7 +310,13 @@ impl opentelemetry_api::metrics::InstrumentProvider
         opentelemetry_api::metrics::ObservableGauge<u64>,
     > {
         Ok(opentelemetry_api::metrics::ObservableGauge::new(
-            InfluxiveUniMetric::new(self.0.clone(), name, description, unit),
+            InfluxiveUniMetric::new(
+                self.0.clone(),
+                name,
+                description,
+                unit,
+                self.1.clone(),
+            ),
         ))
     }
 
@@ -265,7 +330,13 @@ impl opentelemetry_api::metrics::InstrumentProvider
         opentelemetry_api::metrics::ObservableGauge<i64>,
     > {
         Ok(opentelemetry_api::metrics::ObservableGauge::new(
-            InfluxiveUniMetric::new(self.0.clone(), name, description, unit),
+            InfluxiveUniMetric::new(
+                self.0.clone(),
+                name,
+                description,
+                unit,
+                self.1.clone(),
+            ),
         ))
     }
 
@@ -279,7 +350,13 @@ impl opentelemetry_api::metrics::InstrumentProvider
         opentelemetry_api::metrics::ObservableGauge<f64>,
     > {
         Ok(opentelemetry_api::metrics::ObservableGauge::new(
-            InfluxiveUniMetric::new(self.0.clone(), name, description, unit),
+            InfluxiveUniMetric::new(
+                self.0.clone(),
+                name,
+                description,
+                unit,
+                self.1.clone(),
+            ),
         ))
     }
 
@@ -292,7 +369,13 @@ impl opentelemetry_api::metrics::InstrumentProvider
         opentelemetry_api::metrics::Histogram<f64>,
     > {
         Ok(opentelemetry_api::metrics::Histogram::new(
-            InfluxiveUniMetric::new(self.0.clone(), name, description, unit),
+            InfluxiveUniMetric::new(
+                self.0.clone(),
+                name,
+                description,
+                unit,
+                self.1.clone(),
+            ),
         ))
     }
 
@@ -305,7 +388,13 @@ impl opentelemetry_api::metrics::InstrumentProvider
         opentelemetry_api::metrics::Histogram<u64>,
     > {
         Ok(opentelemetry_api::metrics::Histogram::new(
-            InfluxiveUniMetric::new(self.0.clone(), name, description, unit),
+            InfluxiveUniMetric::new(
+                self.0.clone(),
+                name,
+                description,
+                unit,
+                self.1.clone(),
+            ),
         ))
     }
 
@@ -318,7 +407,13 @@ impl opentelemetry_api::metrics::InstrumentProvider
         opentelemetry_api::metrics::Histogram<i64>,
     > {
         Ok(opentelemetry_api::metrics::Histogram::new(
-            InfluxiveUniMetric::new(self.0.clone(), name, description, unit),
+            InfluxiveUniMetric::new(
+                self.0.clone(),
+                name,
+                description,
+                unit,
+                self.1.clone(),
+            ),
         ))
     }
 
@@ -397,10 +492,12 @@ impl opentelemetry_api::metrics::MeterProvider for InfluxiveMeterProvider {
         _name: impl Into<std::borrow::Cow<'static, str>>,
         _version: Option<impl Into<std::borrow::Cow<'static, str>>>,
         _schema_url: Option<impl Into<std::borrow::Cow<'static, str>>>,
-        _attributes: Option<Vec<opentelemetry_api::KeyValue>>,
+        attributes: Option<Vec<opentelemetry_api::KeyValue>>,
     ) -> opentelemetry_api::metrics::Meter {
+        let attributes: Option<Arc<[opentelemetry_api::KeyValue]>> =
+            attributes.map(|a| a.into_boxed_slice().into());
         opentelemetry_api::metrics::Meter::new(Arc::new(
-            InfluxiveInstrumentProvider(self.0.clone()),
+            InfluxiveInstrumentProvider(self.0.clone(), attributes),
         ))
     }
 }
