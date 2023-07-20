@@ -45,7 +45,7 @@ mod tgt {
             "b88989dae0c802fdee499fa07aae837139da3c786293c74e9d7c46b8460510d4"
         )),
         file_hash: Hash::Sha2_256(&hex_literal::hex!(
-            "0000000000000000000000000000000000000000000000000000000000000000"
+            "b966602eb1b43b5d9633446f91d3b84cdd15abfdcaa3aac3dd210368e4eca85e"
         )),
         file_prefix: "influxd",
         file_extension: "",
@@ -59,7 +59,7 @@ mod tgt {
             "d5d09f5279aa32d692362cd096d002d787b3983868487e6f27379b1e205b4ba2"
         )),
         file_hash: Hash::Sha2_256(&hex_literal::hex!(
-            "0000000000000000000000000000000000000000000000000000000000000000"
+            "5dce0d53d84ac5c2ac93acc87585a9da44ba02e5f618418ce8a79d643c372234"
         )),
         file_prefix: "influx",
         file_extension: "",
@@ -81,7 +81,7 @@ mod tgt {
             "af709215dce8767ae131802f050c139d0ae179c13f29bb68ca5baa2716aa1874"
         )),
         file_hash: Hash::Sha2_256(&hex_literal::hex!(
-            "0000000000000000000000000000000000000000000000000000000000000000"
+            "8eb1e1391f6c6619c44b5edd27a39806cb7de89adb8712f66e74379801da4ce3"
         )),
         file_prefix: "influxd",
         file_extension: "",
@@ -95,7 +95,7 @@ mod tgt {
             "4d8297fc9e4ba15e432189295743c399a3e2647e9621bf36c68fbae8873f51b1"
         )),
         file_hash: Hash::Sha2_256(&hex_literal::hex!(
-            "0000000000000000000000000000000000000000000000000000000000000000"
+            "d1744c495f4cba666f79275419d9d48178fb7892113884fbd1cca3d6fc9b4009"
         )),
         file_prefix: "influx",
         file_extension: "",
@@ -114,7 +114,7 @@ mod tgt {
             "8e0acbc7dba55a794450fa53d72cd48958d11d39e619394a268e06a6c03af672"
         )),
         file_hash: Hash::Sha2_256(&hex_literal::hex!(
-            "0000000000000000000000000000000000000000000000000000000000000000"
+            "841f6739607765fc2ffc39be9514dfdce597381368987bab48f5d9cab8d544c7"
         )),
         file_prefix: "influxd",
         file_extension: ".exe",

@@ -397,6 +397,9 @@ async fn dl_influx(
                 err_list.push(err);
             }
         }
+    } else {
+        err_list
+            .push(err_other("no download configured for this target os/arch"));
     }
 
     None
@@ -436,9 +439,6 @@ async fn validate_influx(
                 {
                     ver
                 } else {
-                    err_list.push(err_other(
-                        "no download configured for this target os/arch",
-                    ));
                     return Err(err_other(format!("{:?}", err_list)));
                 }
             }
