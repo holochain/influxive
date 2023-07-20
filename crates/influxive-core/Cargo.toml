@@ -1,0 +1,13 @@
+[package]
+name = "influxive-core"
+version = "0.0.1-alpha.2"
+edition = "2021"
+description = "Core types for influxive crates"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/holochain/influxive"
+documentation = "https://docs.rs/influxive-core"
+authors = [ "Holochain Core Dev Team <devcore@holochain.org>" ]
+keywords = ["metrics"]
+categories = ["development-tools"]
+
+[dependencies]

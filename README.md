@@ -9,5 +9,8 @@
 
 Opinionated tools for working with InfluxDB from Rust.
 
+- [ influxive-core ](https://github.com/holochain/influxive/tree/main/crates/influxive-core) - [ ![crates.io](https://img.shields.io/crates/v/influxive-core) ](https://crates.io/crates/influxive-core) - Core types for influxive crates.
+- [ influxive-downloader ](https://github.com/holochain/influxive/tree/main/crates/influxive-downloader) - [ ![crates.io](https://img.shields.io/crates/v/influxive-downloader) ](https://crates.io/crates/influxive-downloader) - Influxive system download utility.
 - [ influxive-child-svc ](https://github.com/holochain/influxive/tree/main/crates/influxive-child-svc) - [ ![crates.io](https://img.shields.io/crates/v/influxive-child-svc) ](https://crates.io/crates/influxive-child-svc) - Run influxd as a child process.
 - [ influxive-otel ](https://github.com/holochain/influxive/tree/main/crates/influxive-otel) - [ ![crates.io](https://img.shields.io/crates/v/influxive-otel) ](https://crates.io/crates/influxive-otel) - Opentelemetry metrics bindings for influxive-child-svc.
+- [ influxive ](https://github.com/holochain/influxive/tree/main/crates/influxive) - [ ![crates.io](https://img.shields.io/crates/v/influxive) ](https://crates.io/crates/influxive) - High-level Rust integration of opentelemetry metrics and InfluxDB.

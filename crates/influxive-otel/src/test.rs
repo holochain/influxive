@@ -1,4 +1,5 @@
 use super::*;
+use influxive_child_svc::*;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn sanity() {
