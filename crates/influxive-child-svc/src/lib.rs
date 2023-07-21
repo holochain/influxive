@@ -9,22 +9,9 @@ use std::io::Result;
 mod download_binaries;
 
 use influxive_core::*;
+use influxive_writer::*;
 
-trait DataTypeExt {
-    fn into_type(self) -> influxdb::Type;
-}
-
-impl DataTypeExt for DataType {
-    fn into_type(self) -> influxdb::Type {
-        match self {
-            DataType::Bool(b) => influxdb::Type::Boolean(b),
-            DataType::F64(f) => influxdb::Type::Float(f),
-            DataType::I64(i) => influxdb::Type::SignedInteger(i),
-            DataType::U64(u) => influxdb::Type::UnsignedInteger(u),
-            DataType::String(s) => influxdb::Type::Text(s.into_string()),
-        }
-    }
-}
+pub use influxive_writer::InfluxiveWriterConfig;
 
 macro_rules! cmd_output {
     ($cmd:expr $(,$arg:expr)*) => {async {
@@ -46,7 +33,7 @@ macro_rules! cmd_output {
 
 /// Configure the child process.
 #[derive(Debug)]
-pub struct Config {
+pub struct InfluxiveChildSvcConfig {
     #[cfg(feature = "download_binaries")]
     /// If true, will fall back to downloading influx release binaries.
     /// Defaults to `true`.
@@ -85,19 +72,11 @@ pub struct Config {
     /// Defaults to `72h`.
     pub retention: String,
 
-    /// Time span over which metric writes will be buffered before
-    /// actually being written to InfluxDB to facilitate batching.
-    /// Defaults to `100ms`.
-    pub metric_write_batch_duration: std::time::Duration,
-
-    /// The size of the metric write batch buffer. If a metric to be
-    /// writen would go beyond this buffer, it will instead be ignored with
-    /// a trace written at "debug" level.
-    /// Defaults to `4096`.
-    pub metric_write_batch_buffer_size: usize,
+    /// The influxive metric writer configuration.
+    pub metric_write: InfluxiveWriterConfig,
 }
 
-impl Default for Config {
+impl Default for InfluxiveChildSvcConfig {
     fn default() -> Self {
         Self {
             download_binaries: true,
@@ -109,8 +88,7 @@ impl Default for Config {
             org: "influxive".to_string(),
             bucket: "influxive".to_string(),
             retention: "72h".to_string(),
-            metric_write_batch_duration: std::time::Duration::from_millis(100),
-            metric_write_batch_buffer_size: 4096,
+            metric_write: InfluxiveWriterConfig::default(),
         }
     }
 }
@@ -118,18 +96,18 @@ impl Default for Config {
 /// A running child-process instance of influxd.
 /// Command and control functions are provided through the influx cli tool.
 /// Metric writing is provided through the http line protocol.
-pub struct Influxive {
-    config: Config,
+pub struct InfluxiveChildSvc {
+    config: InfluxiveChildSvcConfig,
     host: String,
     token: String,
     child: std::sync::Mutex<Option<tokio::process::Child>>,
     influx_path: std::path::PathBuf,
-    write_send: tokio::sync::mpsc::Sender<Metric>,
+    writer: InfluxiveWriter,
 }
 
-impl Influxive {
+impl InfluxiveChildSvc {
     /// Spawn a new influxd child process.
-    pub async fn new(config: Config) -> Result<Self> {
+    pub async fn new(config: InfluxiveChildSvcConfig) -> Result<Self> {
         let db_path = config.database_path.clone().unwrap_or_else(|| {
             let mut db_path = std::path::PathBuf::from(".");
             db_path.push("influxive");
@@ -183,54 +161,12 @@ impl Influxive {
         let mut token = token.split('\"');
         let token = token.next().unwrap().to_string();
 
-        let client =
-            influxdb::Client::new(&host, "influxive").with_token(&token);
-
-        let (write_send, mut write_recv) =
-            tokio::sync::mpsc::channel(config.metric_write_batch_buffer_size);
-
-        let write_sleep_dur = config.metric_write_batch_duration;
-        tokio::task::spawn(async move {
-            let mut q = Vec::new();
-
-            loop {
-                tokio::time::sleep(write_sleep_dur).await;
-
-                loop {
-                    match write_recv.try_recv() {
-                        Ok(Metric {
-                            timestamp,
-                            name,
-                            fields,
-                            tags,
-                        }) => {
-                            let mut query = influxdb::WriteQuery::new(
-                                influxdb::Timestamp::Nanoseconds(
-                                    timestamp
-                                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                                        .unwrap()
-                                        .as_nanos()
-                                ),
-                                name.into_string(),
-                            );
-                            for (k, v) in fields {
-                                query = query.add_field(k.into_string(), v.into_type());
-                            }
-                            for (k, v) in tags {
-                                query = query.add_tag(k.into_string(), v.into_type());
-                            }
-                            q.push(query)
-                        }
-                        Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
-                        Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => return,
-                    }
-                }
-
-                if let Err(err) = client.query(std::mem::take(&mut q)).await {
-                    tracing::warn!(?err, "write metrics error");
-                }
-            }
-        });
+        let writer = InfluxiveWriter::with_token_auth(
+            config.metric_write.clone(),
+            &host,
+            &config.bucket,
+            &token,
+        );
 
         Ok(Self {
             config,
@@ -238,7 +174,7 @@ impl Influxive {
             token,
             child: std::sync::Mutex::new(Some(child)),
             influx_path,
-            write_send,
+            writer,
         })
     }
 
@@ -248,7 +184,7 @@ impl Influxive {
     }
 
     /// Get the config this instance was created with.
-    pub fn get_config(&self) -> &Config {
+    pub fn get_config(&self) -> &InfluxiveChildSvcConfig {
         &self.config
     }
 
@@ -347,21 +283,13 @@ impl Influxive {
     /// The actual call to log the metrics will be made a configurable
     /// timespan later to facilitate batching of metric writes.
     pub fn write_metric(&self, metric: Metric) {
-        match self.write_send.try_send(metric) {
-            Ok(()) => (),
-            Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
-                tracing::warn!("metrics overloaded, dropping metric");
-            }
-            Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
-                unreachable!("should be impossible, sender task panic?");
-            }
-        }
+        self.writer.write_metric(metric);
     }
 }
 
-impl MetricWriter for Influxive {
+impl MetricWriter for InfluxiveChildSvc {
     fn write_metric(&self, metric: Metric) {
-        Influxive::write_metric(self, metric);
+        InfluxiveChildSvc::write_metric(self, metric);
     }
 }
 
@@ -407,7 +335,7 @@ async fn dl_influx(
 
 async fn validate_influx(
     _db_path: &std::path::Path,
-    config: &Config,
+    config: &InfluxiveChildSvcConfig,
     is_cli: bool,
 ) -> Result<std::path::PathBuf> {
     let mut bin_path = if is_cli {

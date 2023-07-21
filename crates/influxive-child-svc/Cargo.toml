@@ -1,6 +1,6 @@
 [package]
 name = "influxive-child-svc"
-version = "0.0.1-alpha.4"
+version = "0.0.1-alpha.5"
 edition = "2021"
 description = "Run influxd as a child process"
 license = "MIT OR Apache-2.0"
@@ -12,8 +12,8 @@ categories = ["development-tools"]
 
 [dependencies]
 hex-literal = { workspace = true, optional = true }
-influxdb = { workspace = true }
 influxive-core = { workspace = true }
+influxive-writer = { workspace = true }
 influxive-downloader = { workspace = true, optional = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = [ "full" ] }

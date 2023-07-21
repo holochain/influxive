@@ -8,11 +8,14 @@ async fn sanity() {
     let tmp = tempfile::tempdir().unwrap();
 
     let i = Arc::new(
-        Influxive::new(Config {
+        InfluxiveChildSvc::new(InfluxiveChildSvcConfig {
             influxd_path: Some("bad".into()),
             influx_path: Some("bad".into()),
             database_path: Some(tmp.path().into()),
-            metric_write_batch_duration: std::time::Duration::from_millis(5),
+            metric_write: InfluxiveWriterConfig {
+                batch_duration: std::time::Duration::from_millis(5),
+                ..Default::default()
+            },
             ..Default::default()
         })
         .await

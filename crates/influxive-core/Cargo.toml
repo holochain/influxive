@@ -1,6 +1,6 @@
 [package]
 name = "influxive-core"
-version = "0.0.1-alpha.4"
+version = "0.0.1-alpha.5"
 edition = "2021"
 description = "Core types for influxive crates"
 license = "MIT OR Apache-2.0"

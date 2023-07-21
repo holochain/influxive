@@ -1,20 +1,17 @@
 [package]
-name = "influxive-otel"
+name = "influxive-writer"
 version = "0.0.1-alpha.5"
 edition = "2021"
-description = "Opentelemetry metrics bindings for influxive-child-svc"
+description = "Rust utility for efficiently writing metrics to a running InfluxDB instance"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/holochain/influxive"
-documentation = "https://docs.rs/influxive-otel"
+documentation = "https://docs.rs/influxive-writer"
 authors = [ "Holochain Core Dev Team <devcore@holochain.org>" ]
 keywords = ["metrics"]
 categories = ["development-tools"]
 
 [dependencies]
+influxdb = { workspace = true }
 influxive-core = { workspace = true }
-opentelemetry_api = { workspace = true }
-
-[dev-dependencies]
-influxive-child-svc = { workspace = true }
-tempfile = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true }
