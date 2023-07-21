@@ -11,6 +11,9 @@ publish:
 		influxive-core) \
 			export MANIFEST="./crates/influxive-core/Cargo.toml"; \
 			;; \
+		influxive-writer) \
+			export MANIFEST="./crates/influxive-writer/Cargo.toml"; \
+			;; \
 		influxive-downloader) \
 			export MANIFEST="./crates/influxive-downloader/Cargo.toml"; \
 			;; \
@@ -25,6 +28,7 @@ publish:
 			;; \
 		*) \
 			echo "USAGE: make publish crate=influxive-core"; \
+			echo "USAGE: make publish crate=influxive-writer"; \
 			echo "USAGE: make publish crate=influxive-downloader"; \
 			echo "USAGE: make publish crate=influxive-child-svc"; \
 			echo "USAGE: make publish crate=influxive-otel"; \
@@ -50,6 +54,7 @@ static: docs tools
 
 docs: tools
 	cargo rdme --force -w influxive-core
+	cargo rdme --force -w influxive-writer
 	cargo rdme --force -w influxive-downloader
 	cargo rdme --force -w influxive-child-svc
 	cargo rdme --force -w influxive-otel
