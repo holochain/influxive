@@ -1,6 +1,6 @@
 [package]
 name = "influxive-otel"
-version = "0.0.1-alpha.5"
+version = "0.0.1-alpha.6"
 edition = "2021"
 description = "Opentelemetry metrics bindings for influxive-child-svc"
 license = "MIT OR Apache-2.0"
@@ -16,5 +16,6 @@ opentelemetry_api = { workspace = true }
 
 [dev-dependencies]
 influxive-child-svc = { workspace = true }
+influxive-writer = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }

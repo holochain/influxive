@@ -9,4 +9,29 @@
 
 Run influxd as a child process.
 
+## Example
+
+```rust
+use influxive_core::Metric;
+use influxive_child_svc::*;
+
+let tmp = tempfile::tempdir().unwrap();
+
+let influxive = InfluxiveChildSvc::new(
+    InfluxiveChildSvcConfig {
+        database_path: Some(tmp.path().to_owned()),
+        ..Default::default()
+    },
+).await.unwrap();
+
+influxive.write_metric(
+    Metric::new(
+        std::time::SystemTime::now(),
+        "my.metric",
+    )
+    .with_field("value", 3.14)
+    .with_tag("tag", "test-tag")
+);
+```
+
 <!-- cargo-rdme end -->

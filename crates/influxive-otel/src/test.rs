@@ -40,7 +40,10 @@ async fn sanity() {
     );
 
     let m_cnt_f64 = meter.f64_counter("m_cnt_f64").init();
-    let m_hist_f64 = meter.f64_histogram("m_hist_f64").init();
+    let m_hist_f64 = meter
+        .f64_histogram("m_hist_f64")
+        .with_unit(opentelemetry_api::metrics::Unit::new("s"))
+        .init();
     let m_obs_cnt_f64 = meter.f64_observable_counter("m_obs_cnt_f64").init();
     let m_obs_g_f64 = meter.f64_observable_gauge("m_obs_g_f64").init();
     let m_obs_ud_f64 =

@@ -9,4 +9,31 @@
 
 Opentelemetry metrics bindings for influxive-child-svc.
 
+## Example
+
+```rust
+use influxive_writer::*;
+
+// create an influxive writer
+let writer = InfluxiveWriter::with_token_auth(
+    InfluxiveWriterConfig::default(),
+    "http://127.0.0.1:8086",
+    "my.bucket",
+    "my.token",
+);
+
+// register the meter provider
+opentelemetry_api::global::set_meter_provider(
+    influxive_otel::InfluxiveMeterProvider::new(Arc::new(writer))
+);
+
+// create a metric
+let m = opentelemetry_api::global::meter("my.meter")
+    .f64_histogram("my.metric")
+    .init();
+
+// make a recording
+m.record(&opentelemetry_api::Context::new(), 3.14, &[]);
+```
+
 <!-- cargo-rdme end -->

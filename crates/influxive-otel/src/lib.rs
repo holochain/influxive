@@ -2,6 +2,37 @@
 #![deny(warnings)]
 #![deny(unsafe_code)]
 //! Opentelemetry metrics bindings for influxive-child-svc.
+//!
+//! ## Example
+//!
+//! ```
+//! # #[tokio::main(flavor = "multi_thread")]
+//! # async fn main() {
+//! #     use std::sync::Arc;
+//! use influxive_writer::*;
+//!
+//! // create an influxive writer
+//! let writer = InfluxiveWriter::with_token_auth(
+//!     InfluxiveWriterConfig::default(),
+//!     "http://127.0.0.1:8086",
+//!     "my.bucket",
+//!     "my.token",
+//! );
+//!
+//! // register the meter provider
+//! opentelemetry_api::global::set_meter_provider(
+//!     influxive_otel::InfluxiveMeterProvider::new(Arc::new(writer))
+//! );
+//!
+//! // create a metric
+//! let m = opentelemetry_api::global::meter("my.meter")
+//!     .f64_histogram("my.metric")
+//!     .init();
+//!
+//! // make a recording
+//! m.record(&opentelemetry_api::Context::new(), 3.14, &[]);
+//! # }
+//! ```
 
 use influxive_core::*;
 use std::sync::Arc;
@@ -12,8 +43,7 @@ struct InfluxiveUniMetric<
     this: std::sync::Weak<Self>,
     influxive: Arc<dyn MetricWriter + 'static + Send + Sync>,
     name: std::borrow::Cow<'static, str>,
-    //description: Option<std::borrow::Cow<'static, str>>,
-    //unit: Option<opentelemetry_api::metrics::Unit>,
+    unit: Option<opentelemetry_api::metrics::Unit>,
     attributes: Option<Arc<[opentelemetry_api::KeyValue]>>,
     _p: std::marker::PhantomData<T>,
 }
@@ -24,42 +54,33 @@ impl<T: 'static + std::fmt::Display + Into<DataType> + Send + Sync>
     pub fn new(
         influxive: Arc<dyn MetricWriter + 'static + Send + Sync>,
         name: std::borrow::Cow<'static, str>,
+        // description over and over takes up too much space in the
+        // influx database, just ignore it for this application.
         _description: Option<std::borrow::Cow<'static, str>>,
-        _unit: Option<opentelemetry_api::metrics::Unit>,
+        unit: Option<opentelemetry_api::metrics::Unit>,
         attributes: Option<Arc<[opentelemetry_api::KeyValue]>>,
     ) -> Arc<Self> {
-        Arc::new_cyclic(|this| {
-            Self {
-                this: this.clone(),
-                influxive,
-                name,
-                //description,
-                //unit,
-                attributes,
-                _p: std::marker::PhantomData,
-            }
+        Arc::new_cyclic(|this| Self {
+            this: this.clone(),
+            influxive,
+            name,
+            unit,
+            attributes,
+            _p: std::marker::PhantomData,
         })
     }
 
     fn report(&self, value: T, attributes: &[opentelemetry_api::KeyValue]) {
+        let name = if let Some(unit) = &self.unit {
+            format!("{}.{}", &self.name, unit.as_str())
+        } else {
+            self.name.to_string()
+        };
+
         // otel metrics are largely a single measurement... so
         // just applying them to the generic "value" name in influx.
-        let mut metric =
-            Metric::new(std::time::SystemTime::now(), self.name.to_string())
-                .with_field("value", value);
-
-        // these are largely not useful when viewing influx data
-        // recommend just using descriptive metric names with
-        // units in the name itself.
-        /*
-        if let Some(description) = &self.description {
-            metric = metric.with_tag("description", description.to_string());
-        }
-
-        if let Some(unit) = &self.unit {
-            metric = metric.with_tag("unit", unit.as_str().to_string());
-        }
-        */
+        let mut metric = Metric::new(std::time::SystemTime::now(), name)
+            .with_field("value", value);
 
         // everything else is a tag? would these be better as fields?
         // some kind of naming convention to pick between the two??

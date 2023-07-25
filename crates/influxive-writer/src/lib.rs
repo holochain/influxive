@@ -2,6 +2,32 @@
 #![deny(warnings)]
 #![deny(unsafe_code)]
 //! Rust utility for efficiently writing metrics to a running InfluxDB instance.
+//!
+//! ## Example
+//!
+//! ```
+//! # #[tokio::main(flavor = "multi_thread")]
+//! # async fn main() {
+//! use influxive_core::Metric;
+//! use influxive_writer::*;
+//!
+//! let writer = InfluxiveWriter::with_token_auth(
+//!     InfluxiveWriterConfig::default(),
+//!     "http://127.0.0.1:8086",
+//!     "my.bucket",
+//!     "my.token",
+//! );
+//!
+//! writer.write_metric(
+//!     Metric::new(
+//!         std::time::SystemTime::now(),
+//!         "my.metric",
+//!     )
+//!     .with_field("value", 3.14)
+//!     .with_tag("tag", "test-tag")
+//! );
+//! # }
+//! ```
 
 use influxive_core::*;
 

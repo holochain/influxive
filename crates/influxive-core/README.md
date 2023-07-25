@@ -10,4 +10,20 @@
 Core types for influxive crates. The main point of this crate is to expose
 the [MetricWriter] trait to be used by downstream influxive crates.
 
+## Example [Metric] type creation:
+
+```rust
+let _metric = influxive_core::Metric::new(std::time::SystemTime::now(), "my.name")
+    .with_field("field.bool", true)
+    .with_field("field.float", 3.14)
+    .with_field("field.signed", -42)
+    .with_field("field.unsigned", 42)
+    .with_field("field.string", "string.value")
+    .with_tag("tag.bool", true)
+    .with_tag("tag.float", 3.14)
+    .with_tag("tag.signed", -42)
+    .with_tag("tag.unsigned", 42)
+    .with_tag("tag.string", "string.value");
+```
+
 <!-- cargo-rdme end -->

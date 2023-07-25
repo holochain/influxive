@@ -9,4 +9,54 @@
 
 High-level Rust integration of opentelemetry metrics and InfluxDB.
 
+## Examples
+
+### Easy, zero-configuration InfluxDB as a child process
+
+```rust
+let tmp = tempfile::tempdir().unwrap();
+
+// create our meter provider
+let (_influxive, meter_provider) = influxive::influxive_child_process_meter_provider(
+    influxive::InfluxiveChildSvcConfig {
+        database_path: Some(tmp.path().to_owned()),
+        ..Default::default()
+    },
+).await.unwrap();
+
+// register our meter provider
+opentelemetry_api::global::set_meter_provider(meter_provider);
+
+// create a metric
+let m = opentelemetry_api::global::meter("my.meter")
+    .f64_histogram("my.metric")
+    .init();
+
+// make a recording
+m.record(&opentelemetry_api::Context::new(), 3.14, &[]);
+```
+
+### Connecting to an already running InfluxDB system process
+
+```rust
+// create our meter provider
+let meter_provider = influxive::influxive_external_meter_provider_token_auth(
+    influxive::InfluxiveWriterConfig::default(),
+    "http://127.0.0.1:8086",
+    "my.bucket",
+    "my.token",
+);
+
+// register our meter provider
+opentelemetry_api::global::set_meter_provider(meter_provider);
+
+// create a metric
+let m = opentelemetry_api::global::meter("my.meter")
+    .f64_histogram("my.metric")
+    .init();
+
+// make a recording
+m.record(&opentelemetry_api::Context::new(), 3.14, &[]);
+```
+
 <!-- cargo-rdme end -->

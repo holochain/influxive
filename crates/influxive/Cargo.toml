@@ -1,6 +1,6 @@
 [package]
 name = "influxive"
-version = "0.0.1-alpha.5"
+version = "0.0.1-alpha.6"
 edition = "2021"
 description = "High-level Rust integration of opentelemetry metrics and InfluxDB"
 license = "MIT OR Apache-2.0"
@@ -14,3 +14,8 @@ categories = ["development-tools"]
 influxive-writer = { workspace = true }
 influxive-child-svc = { workspace = true }
 influxive-otel = { workspace = true }
+
+[dev-dependencies]
+opentelemetry_api = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = [ "full" ] }
