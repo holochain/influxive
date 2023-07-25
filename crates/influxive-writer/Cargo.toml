@@ -1,6 +1,6 @@
 [package]
 name = "influxive-writer"
-version = "0.0.1-alpha.5"
+version = "0.0.1-alpha.6"
 edition = "2021"
 description = "Rust utility for efficiently writing metrics to a running InfluxDB instance"
 license = "MIT OR Apache-2.0"

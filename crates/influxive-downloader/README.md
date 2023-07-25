@@ -7,6 +7,9 @@
 
 <!-- cargo-rdme start -->
 
-Influxive system download utility.
+Influxive system download utility. It's probably not useful to use this
+crate directly. It mainly exists as separate from the
+influxive-child-svc crate as a means to make it easy for the dependencies
+to be optional.
 
 <!-- cargo-rdme end -->

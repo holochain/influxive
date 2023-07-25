@@ -1,7 +1,10 @@
 #![deny(missing_docs)]
 #![deny(warnings)]
 #![deny(unsafe_code)]
-//! Influxive system download utility.
+//! Influxive system download utility. It's probably not useful to use this
+//! crate directly. It mainly exists as separate from the
+//! influxive-child-svc crate as a means to make it easy for the dependencies
+//! to be optional.
 
 use base64::prelude::{Engine as _, BASE64_URL_SAFE_NO_PAD};
 use influxive_core::err_other;
@@ -24,17 +27,6 @@ pub enum Archive {
         inner_path: &'static str,
     },
 }
-
-/*
-impl Archive {
-    fn inner_path(&self) -> std::path::PathBuf {
-        match self {
-            Self::TarGz { inner_path } => std::path::PathBuf::from(inner_path),
-            Self::Zip { inner_path } => std::path::PathBuf::from(inner_path),
-        }
-    }
-}
-*/
 
 /// Indicate the hash type to verify.
 #[derive(Debug, Clone)]
