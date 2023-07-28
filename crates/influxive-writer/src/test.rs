@@ -1,15 +1,34 @@
 use crate::types::*;
 use crate::*;
 
-struct TestBackend(usize, Arc<std::sync::atomic::AtomicUsize>);
+struct TestBackend {
+    test_start: std::time::Instant,
+    buffer_count: usize,
+    write_count: Arc<std::sync::atomic::AtomicUsize>,
+}
+
+impl TestBackend {
+    pub fn new(write_count: Arc<std::sync::atomic::AtomicUsize>) -> Self {
+        Self {
+            test_start: std::time::Instant::now(),
+            buffer_count: 0,
+            write_count,
+        }
+    }
+}
 
 impl Backend for TestBackend {
     fn buffer_metric(&mut self, _metric: Metric) {
-        self.0 += 1;
+        self.buffer_count += 1;
+        println!(
+            "@@@ {} buffer {}",
+            self.test_start.elapsed().as_secs_f64(),
+            self.buffer_count
+        );
     }
 
     fn buffer_count(&self) -> usize {
-        self.0
+        self.buffer_count
     }
 
     fn send(
@@ -20,9 +39,13 @@ impl Backend for TestBackend {
         Box::pin(async move {
             // simulate it taking a while to do things
             tokio::time::sleep(std::time::Duration::from_millis(5)).await;
-            self.1
-                .fetch_add(self.0, std::sync::atomic::Ordering::SeqCst);
-            self.0 = 0;
+            self.write_count.fetch_add(
+                self.buffer_count,
+                std::sync::atomic::Ordering::SeqCst,
+            );
+            self.buffer_count = 0;
+
+            println!("@@@ {} write", self.test_start.elapsed().as_secs_f64());
         })
     }
 }
@@ -52,7 +75,7 @@ impl BackendFactory for TestFactory {
         _token: String,
     ) -> Box<dyn Backend + 'static + Send + Sync> {
         let out: Box<dyn Backend + 'static + Send + Sync> =
-            Box::new(TestBackend(0, self.write_count.clone()));
+            Box::new(TestBackend::new(self.write_count.clone()));
         out
     }
 }
@@ -71,6 +94,8 @@ async fn writer_stress() {
 
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
+    println!("@@@ - start easy");
+
     // this should be well within our cadence
     for _ in 0..5 {
         for _ in 0..5 {
@@ -84,6 +109,8 @@ async fn writer_stress() {
     }
 
     assert_eq!(25, factory.get_write_count());
+
+    println!("@@@ - start stress");
 
     // this should be well outside our cadence
     for _ in 0..5 {
