@@ -1,7 +1,7 @@
 use crate::types::*;
 use crate::*;
 
-struct TestBackend(u64, Arc<std::sync::atomic::AtomicU64>);
+struct TestBackend(usize, Arc<std::sync::atomic::AtomicUsize>);
 
 impl Backend for TestBackend {
     fn buffer_metric(&mut self, _metric: Metric) {
@@ -9,7 +9,7 @@ impl Backend for TestBackend {
     }
 
     fn buffer_count(&self) -> usize {
-        self.0 as usize
+        self.0
     }
 
     fn send(
@@ -29,17 +29,17 @@ impl Backend for TestBackend {
 
 #[derive(Debug)]
 struct TestFactory {
-    write_count: Arc<std::sync::atomic::AtomicU64>,
+    write_count: Arc<std::sync::atomic::AtomicUsize>,
 }
 
 impl TestFactory {
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
-            write_count: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            write_count: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         })
     }
 
-    pub fn get_write_count(&self) -> u64 {
+    pub fn get_write_count(&self) -> usize {
         self.write_count.load(std::sync::atomic::Ordering::SeqCst)
     }
 }
@@ -68,6 +68,8 @@ async fn writer_stress() {
     };
 
     let writer = InfluxiveWriter::with_token_auth(config, "", "", "");
+
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
     // this should be well within our cadence
     for _ in 0..5 {
