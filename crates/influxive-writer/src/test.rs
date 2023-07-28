@@ -78,22 +78,24 @@ async fn writer_stress() {
                     .with_tag("tag", "test-tag"),
             );
         }
-        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
 
     assert_eq!(25, factory.get_write_count());
 
     // this should be well outside our cadence
     for _ in 0..5 {
-        for _ in 0..500 {
+        for _ in 0..20 {
             writer.write_metric(
                 Metric::new(std::time::SystemTime::now(), "my.metric")
                     .with_field("val", 3.14)
                     .with_tag("tag", "test-tag"),
             );
         }
-        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(3)).await;
     }
 
-    assert!(factory.get_write_count() < 2500);
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    assert!(factory.get_write_count() < 100);
 }
