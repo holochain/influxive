@@ -1,8 +1,8 @@
 [package]
-name = "influxive-otel"
+name = "influxive-otel-atomic-obs"
 version = "0.0.1-alpha.6"
 edition = "2021"
-description = "Opentelemetry metrics bindings for influxive-child-svc"
+description = "Opentelemetry observable metric implementations based on std::sync::atomic types"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/holochain/influxive"
 documentation = "https://docs.rs/influxive-otel"
@@ -11,12 +11,4 @@ keywords = ["metrics"]
 categories = ["development-tools"]
 
 [dependencies]
-influxive-core = { workspace = true }
 opentelemetry_api = { workspace = true }
-
-[dev-dependencies]
-influxive-otel-atomic-obs = { workspace = true }
-influxive-child-svc = { workspace = true }
-influxive-writer = { workspace = true }
-tempfile = { workspace = true }
-tokio = { workspace = true }
