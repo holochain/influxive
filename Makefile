@@ -6,6 +6,15 @@ SHELL = /usr/bin/env sh -eu
 
 all: test
 
+publish-all:
+	$(MAKE) publish crate=influxive-core
+	$(MAKE) publish crate=influxive-writer
+	$(MAKE) publish crate=influxive-downloader
+	$(MAKE) publish crate=influxive-child-svc
+	$(MAKE) publish crate=influxive-otel-atomic-obs
+	$(MAKE) publish crate=influxive-otel
+	$(MAKE) publish crate=influxive
+
 publish:
 	@case "$(crate)" in \
 		influxive-core) \
@@ -20,6 +29,9 @@ publish:
 		influxive-child-svc) \
 			export MANIFEST="./crates/influxive-child-svc/Cargo.toml"; \
 			;; \
+		influxive-otel-atomic-obs) \
+			export MANIFEST="./crates/influxive-otel-atomic-obs/Cargo.toml"; \
+			;; \
 		influxive-otel) \
 			export MANIFEST="./crates/influxive-otel/Cargo.toml"; \
 			;; \
@@ -31,6 +43,7 @@ publish:
 			echo "USAGE: make publish crate=influxive-writer"; \
 			echo "USAGE: make publish crate=influxive-downloader"; \
 			echo "USAGE: make publish crate=influxive-child-svc"; \
+			echo "USAGE: make publish crate=influxive-otel-atomic-obs"; \
 			echo "USAGE: make publish crate=influxive-otel"; \
 			echo "USAGE: make publish crate=influxive"; \
 			exit 1; \
@@ -57,6 +70,7 @@ docs: tools
 	cargo rdme --force -w influxive-writer
 	cargo rdme --force -w influxive-downloader
 	cargo rdme --force -w influxive-child-svc
+	cargo rdme --force -w influxive-otel-atomic-obs
 	cargo rdme --force -w influxive-otel
 	cargo rdme --force -w influxive
 

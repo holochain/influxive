@@ -3,6 +3,7 @@ use influxive_child_svc::*;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn sanity() {
+    use influxive_otel_atomic_obs::MeterExt;
     use opentelemetry_api::metrics::MeterProvider;
 
     let tmp = tempfile::tempdir().unwrap();
@@ -27,7 +28,7 @@ async fn sanity() {
     i.ping().await.unwrap();
 
     let meter_provider = InfluxiveMeterProvider::new(i.clone());
-    opentelemetry_api::global::set_meter_provider(meter_provider);
+    opentelemetry_api::global::set_meter_provider(meter_provider.clone());
 
     let meter = opentelemetry_api::global::meter_provider().versioned_meter(
         "my_metrics",
@@ -39,62 +40,130 @@ async fn sanity() {
         )]),
     );
 
+    // -- f64 -- //
+
     let m_cnt_f64 = meter.f64_counter("m_cnt_f64").init();
     let m_hist_f64 = meter
         .f64_histogram("m_hist_f64")
         .with_unit(opentelemetry_api::metrics::Unit::new("s"))
         .init();
-    let m_obs_cnt_f64 = meter.f64_observable_counter("m_obs_cnt_f64").init();
-    let m_obs_g_f64 = meter.f64_observable_gauge("m_obs_g_f64").init();
-    let m_obs_ud_f64 =
-        meter.f64_observable_up_down_counter("m_obs_ud_f64").init();
+    let (m_obs_cnt_f64_a, _) = meter
+        .f64_observable_counter_atomic("m_obs_cnt_f64_a", 0.0)
+        .init();
+    let m_obs_cnt_f64_r =
+        Arc::new(meter.f64_observable_counter("m_obs_cnt_f64_r").init());
+    let m_obs_cnt_f64_r2 = m_obs_cnt_f64_r.clone();
+    meter
+        .register_callback(&[m_obs_cnt_f64_r], move |o| {
+            o.observe_f64(&*m_obs_cnt_f64_r2, 1.1, &[]);
+        })
+        .unwrap();
+    let (m_obs_g_f64_a, _) = meter
+        .f64_observable_gauge_atomic("m_obs_g_f64_a", 0.0)
+        .init();
+    let m_obs_g_f64_r =
+        Arc::new(meter.f64_observable_gauge("m_obs_g_f64_r").init());
+    let m_obs_g_f64_r2 = m_obs_g_f64_r.clone();
+    meter
+        .register_callback(&[m_obs_g_f64_r], move |o| {
+            o.observe_f64(&*m_obs_g_f64_r2, 1.1, &[]);
+        })
+        .unwrap();
+    let m_obs_ud_f64_r = Arc::new(
+        meter
+            .f64_observable_up_down_counter("m_obs_ud_f64_r")
+            .init(),
+    );
+    let (m_obs_ud_f64_a, _) = meter
+        .f64_observable_up_down_counter_atomic("m_obs_ud_f64_a", 0.0)
+        .init();
+    let m_obs_ud_f64_r2 = m_obs_ud_f64_r.clone();
+    meter
+        .register_callback(&[m_obs_ud_f64_r], move |o| {
+            o.observe_f64(&*m_obs_ud_f64_r2, -1.1, &[]);
+        })
+        .unwrap();
     let m_ud_f64 = meter.f64_up_down_counter("m_ud_f64").init();
 
+    // -- i64 -- //
+
     let m_hist_i64 = meter.i64_histogram("m_hist_i64").init();
-    let m_obs_g_i64 = meter.i64_observable_gauge("m_obs_g_i64").init();
-    let m_obs_ud_i64 =
-        meter.i64_observable_up_down_counter("m_obs_ud_i64").init();
+    let (m_obs_g_i64_a, _) =
+        meter.i64_observable_gauge_atomic("m_obs_g_i64_a", 0).init();
+    let m_obs_g_i64_r =
+        Arc::new(meter.i64_observable_gauge("m_obs_g_i64_r").init());
+    let m_obs_g_i64_r2 = m_obs_g_i64_r.clone();
+    meter
+        .register_callback(&[m_obs_g_i64_r], move |o| {
+            o.observe_i64(&*m_obs_g_i64_r2, -1, &[]);
+        })
+        .unwrap();
+    let (m_obs_ud_i64_a, _) = meter
+        .i64_observable_up_down_counter_atomic("m_obs_ud_i64_a", 0)
+        .init();
+    let m_obs_ud_i64_r = Arc::new(
+        meter
+            .i64_observable_up_down_counter("m_obs_ud_i64_r")
+            .init(),
+    );
+    let m_obs_ud_i64_r2 = m_obs_ud_i64_r.clone();
+    meter
+        .register_callback(&[m_obs_ud_i64_r], move |o| {
+            o.observe_i64(&*m_obs_ud_i64_r2, -1, &[]);
+        })
+        .unwrap();
     let m_ud_i64 = meter.i64_up_down_counter("m_ud_i64").init();
+
+    // -- u64 -- /
 
     let m_cnt_u64 = meter.u64_counter("m_cnt_u64").init();
     let m_hist_u64 = meter.u64_histogram("m_hist_u64").init();
-    let m_obs_cnt_u64 = meter.u64_observable_counter("m_obs_cnt_u64").init();
-    let m_obs_g_u64 = meter.u64_observable_gauge("m_obs_g_u64").init();
+    let (m_obs_cnt_u64_a, _) = meter
+        .u64_observable_counter_atomic("m_obs_cnt_u64_a", 0)
+        .init();
+    let m_obs_cnt_u64_r =
+        Arc::new(meter.u64_observable_counter("m_obs_cnt_u64_r").init());
+    let m_obs_cnt_u64_r2 = m_obs_cnt_u64_r.clone();
+    meter
+        .register_callback(&[m_obs_cnt_u64_r], move |o| {
+            o.observe_u64(&*m_obs_cnt_u64_r2, 1, &[])
+        })
+        .unwrap();
+    let (m_obs_g_u64_a, _) =
+        meter.u64_observable_gauge_atomic("m_obs_g_u64_a", 0).init();
+    let m_obs_g_u64_r =
+        Arc::new(meter.u64_observable_gauge("m_obs_g_u64_r").init());
+    let m_obs_g_u64_r2 = m_obs_g_u64_r.clone();
+    meter
+        .register_callback(&[m_obs_g_u64_r], move |o| {
+            o.observe_u64(&*m_obs_g_u64_r2, 1, &[])
+        })
+        .unwrap();
 
     for _ in 0..12 {
         tokio::time::sleep(std::time::Duration::from_millis(1)).await;
 
         let cx = opentelemetry_api::Context::new();
 
-        macro_rules! obs {
-            ($n:ident, $f:ident, $v:literal) => {{
-                let $n = $n.clone();
-                meter
-                    .register_callback(&[$n.as_any()], move |obs| {
-                        obs.$f(&$n, $v, &[])
-                    })
-                    .unwrap()
-                    .unregister()
-                    .unwrap();
-            }};
-        }
-
         m_cnt_f64.add(&cx, 1.1, &[]);
         m_hist_f64.record(&cx, 1.1, &[]);
-        obs!(m_obs_cnt_f64, observe_f64, 1.1);
-        obs!(m_obs_g_f64, observe_f64, -1.1);
-        obs!(m_obs_ud_f64, observe_f64, -1.1);
+        m_obs_cnt_f64_a.add(1.1);
+        m_obs_g_f64_a.set(-1.1);
+        m_obs_ud_f64_a.add(-1.1);
         m_ud_f64.add(&cx, -1.1, &[]);
 
         m_hist_i64.record(&cx, -1, &[]);
-        obs!(m_obs_g_i64, observe_i64, -1);
-        obs!(m_obs_ud_i64, observe_i64, -1);
+        m_obs_g_i64_a.set(-1);
+        m_obs_ud_i64_a.add(-1);
         m_ud_i64.add(&cx, -1, &[]);
 
         m_cnt_u64.add(&cx, 1, &[]);
         m_hist_u64.record(&cx, 1, &[]);
-        obs!(m_obs_cnt_u64, observe_u64, 1);
-        obs!(m_obs_g_u64, observe_u64, 1);
+        m_obs_cnt_u64_a.add(1);
+        m_obs_g_u64_a.set(1);
+
+        // trigger reporting of observable metrics
+        meter_provider.report();
     }
 
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
@@ -112,20 +181,27 @@ async fn sanity() {
 
     assert_eq!(12, result.matches("m_cnt_f64").count());
     assert_eq!(12, result.matches("m_hist_f64").count());
-    assert_eq!(12, result.matches("m_obs_cnt_f64").count());
-    assert_eq!(12, result.matches("m_obs_g_f64").count());
-    assert_eq!(12, result.matches("m_obs_ud_f64").count());
+    assert_eq!(12, result.matches("m_obs_cnt_f64_a").count());
+    assert_eq!(12, result.matches("m_obs_cnt_f64_r").count());
+    assert_eq!(12, result.matches("m_obs_g_f64_a").count());
+    assert_eq!(12, result.matches("m_obs_g_f64_r").count());
+    assert_eq!(12, result.matches("m_obs_ud_f64_a").count());
+    assert_eq!(12, result.matches("m_obs_ud_f64_r").count());
     assert_eq!(12, result.matches("m_ud_f64").count());
 
     assert_eq!(12, result.matches("m_hist_i64").count());
-    assert_eq!(12, result.matches("m_obs_g_i64").count());
-    assert_eq!(12, result.matches("m_obs_ud_i64").count());
+    assert_eq!(12, result.matches("m_obs_g_i64_a").count());
+    assert_eq!(12, result.matches("m_obs_g_i64_r").count());
+    assert_eq!(12, result.matches("m_obs_ud_i64_a").count());
+    assert_eq!(12, result.matches("m_obs_ud_i64_r").count());
     assert_eq!(12, result.matches("m_ud_i64").count());
 
     assert_eq!(12, result.matches("m_cnt_u64").count());
     assert_eq!(12, result.matches("m_hist_u64").count());
-    assert_eq!(12, result.matches("m_obs_cnt_u64").count());
-    assert_eq!(12, result.matches("m_obs_g_u64").count());
+    assert_eq!(12, result.matches("m_obs_cnt_u64_a").count());
+    assert_eq!(12, result.matches("m_obs_cnt_u64_r").count());
+    assert_eq!(12, result.matches("m_obs_g_u64_a").count());
+    assert_eq!(12, result.matches("m_obs_g_u64_r").count());
 
     println!("about to shutdown influxive-child-svc");
     i.shutdown();
