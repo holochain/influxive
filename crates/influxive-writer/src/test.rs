@@ -8,9 +8,12 @@ struct TestBackend {
 }
 
 impl TestBackend {
-    pub fn new(write_count: Arc<std::sync::atomic::AtomicUsize>) -> Self {
+    pub fn new(
+        test_start: std::time::Instant,
+        write_count: Arc<std::sync::atomic::AtomicUsize>,
+    ) -> Self {
         Self {
-            test_start: std::time::Instant::now(),
+            test_start,
             buffer_count: 0,
             write_count,
         }
@@ -21,7 +24,7 @@ impl Backend for TestBackend {
     fn buffer_metric(&mut self, _metric: Metric) {
         self.buffer_count += 1;
         println!(
-            "@@@ {} buffer {}",
+            "@@@ {:0.2} - buffer {}",
             self.test_start.elapsed().as_secs_f64(),
             self.buffer_count
         );
@@ -45,19 +48,24 @@ impl Backend for TestBackend {
             );
             self.buffer_count = 0;
 
-            println!("@@@ {} write", self.test_start.elapsed().as_secs_f64());
+            println!(
+                "@@@ {:0.2} - write",
+                self.test_start.elapsed().as_secs_f64()
+            );
         })
     }
 }
 
 #[derive(Debug)]
 struct TestFactory {
+    test_start: std::time::Instant,
     write_count: Arc<std::sync::atomic::AtomicUsize>,
 }
 
 impl TestFactory {
-    pub fn new() -> Arc<Self> {
+    pub fn new(test_start: std::time::Instant) -> Arc<Self> {
         Arc::new(Self {
+            test_start,
             write_count: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         })
     }
@@ -74,15 +82,18 @@ impl BackendFactory for TestFactory {
         _bucket: String,
         _token: String,
     ) -> Box<dyn Backend + 'static + Send + Sync> {
-        let out: Box<dyn Backend + 'static + Send + Sync> =
-            Box::new(TestBackend::new(self.write_count.clone()));
+        let out: Box<dyn Backend + 'static + Send + Sync> = Box::new(
+            TestBackend::new(self.test_start, self.write_count.clone()),
+        );
         out
     }
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn writer_stress() {
-    let factory = TestFactory::new();
+    let test_start = std::time::Instant::now();
+
+    let factory = TestFactory::new(test_start);
 
     let config = InfluxiveWriterConfig {
         batch_duration: std::time::Duration::from_millis(3),
@@ -94,11 +105,22 @@ async fn writer_stress() {
 
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-    println!("@@@ - start easy");
+    println!(
+        "@@@ {:0.2} - start easy",
+        test_start.elapsed().as_secs_f64()
+    );
+
+    let mut cnt = 0;
 
     // this should be well within our cadence
     for _ in 0..5 {
         for _ in 0..5 {
+            cnt += 1;
+            println!(
+                "@@@ {:0.2} - submit {}",
+                test_start.elapsed().as_secs_f64(),
+                cnt
+            );
             writer.write_metric(
                 Metric::new(std::time::SystemTime::now(), "my.metric")
                     .with_field("val", 3.14)
@@ -110,11 +132,20 @@ async fn writer_stress() {
 
     assert_eq!(25, factory.get_write_count());
 
-    println!("@@@ - start stress");
+    println!(
+        "@@@ {:0.2} - start stress",
+        test_start.elapsed().as_secs_f64()
+    );
 
     // this should be well outside our cadence
     for _ in 0..5 {
         for _ in 0..20 {
+            cnt += 1;
+            println!(
+                "@@@ {:0.2} - submit {}",
+                test_start.elapsed().as_secs_f64(),
+                cnt
+            );
             writer.write_metric(
                 Metric::new(std::time::SystemTime::now(), "my.metric")
                     .with_field("val", 3.14)
