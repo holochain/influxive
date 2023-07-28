@@ -6,6 +6,15 @@ SHELL = /usr/bin/env sh -eu
 
 all: test
 
+publish-all:
+	$(MAKE) publish crate=influxive-core
+	$(MAKE) publish crate=influxive-writer
+	$(MAKE) publish crate=influxive-downloader
+	$(MAKE) publish crate=influxive-child-svc
+	$(MAKE) publish crate=influxive-otel-atomic-obs
+	$(MAKE) publish crate=influxive-otel
+	$(MAKE) publish crate=influxive
+
 publish:
 	@case "$(crate)" in \
 		influxive-core) \

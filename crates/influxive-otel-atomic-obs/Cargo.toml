@@ -1,6 +1,6 @@
 [package]
 name = "influxive-otel-atomic-obs"
-version = "0.0.1-alpha.6"
+version = "0.0.1-alpha.7"
 edition = "2021"
 description = "Opentelemetry observable metric implementations based on std::sync::atomic types"
 license = "MIT OR Apache-2.0"
