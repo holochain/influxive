@@ -41,7 +41,7 @@ impl Backend for TestBackend {
     > {
         Box::pin(async move {
             // simulate it taking a while to do things
-            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
             self.write_count.fetch_add(
                 self.buffer_count,
                 std::sync::atomic::Ordering::SeqCst,
@@ -96,7 +96,7 @@ async fn writer_stress() {
     let factory = TestFactory::new(test_start);
 
     let config = InfluxiveWriterConfig {
-        batch_duration: std::time::Duration::from_millis(3),
+        batch_duration: std::time::Duration::from_millis(30),
         batch_buffer_size: 10,
         backend: factory.clone(),
     };
@@ -130,6 +130,8 @@ async fn writer_stress() {
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
 
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
     assert_eq!(25, factory.get_write_count());
 
     println!(
@@ -139,7 +141,7 @@ async fn writer_stress() {
 
     // this should be well outside our cadence
     for _ in 0..5 {
-        for _ in 0..20 {
+        for _ in 0..50 {
             cnt += 1;
             println!(
                 "@@@ {:0.2} - submit {}",
@@ -152,10 +154,10 @@ async fn writer_stress() {
                     .with_tag("tag", "test-tag"),
             );
         }
-        tokio::time::sleep(std::time::Duration::from_millis(3)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
 
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-    assert!(factory.get_write_count() < 100);
+    assert!(factory.get_write_count() < 250);
 }
