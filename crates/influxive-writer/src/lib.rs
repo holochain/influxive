@@ -158,6 +158,7 @@ pub mod types {
 
 /// InfluxDB metric writer configuration.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct InfluxiveWriterConfig {
     /// Max time span over which metric writes will be buffered before
     /// actually being written to InfluxDB to facilitate batching.
@@ -184,6 +185,32 @@ impl Default for InfluxiveWriterConfig {
             batch_buffer_size: 4096,
             backend: Arc::new(types::DefaultBackendFactory),
         }
+    }
+}
+
+impl InfluxiveWriterConfig {
+    /// Apply [InfluxiveWriterConfig::batch_duration].
+    pub fn with_batch_duration(
+        mut self,
+        batch_duration: std::time::Duration,
+    ) -> Self {
+        self.batch_duration = batch_duration;
+        self
+    }
+
+    /// Apply [InfluxiveWriterConfig::batch_buffer_size].
+    pub fn with_batch_buffer_size(mut self, batch_buffer_size: usize) -> Self {
+        self.batch_buffer_size = batch_buffer_size;
+        self
+    }
+
+    /// Apply [InfluxiveWriterConfig::backend].
+    pub fn with_backend(
+        mut self,
+        backend: Arc<dyn types::BackendFactory + 'static + Send + Sync>,
+    ) -> Self {
+        self.backend = backend;
+        self
     }
 }
 

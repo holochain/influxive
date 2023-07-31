@@ -18,10 +18,9 @@ let tmp = tempfile::tempdir().unwrap();
 
 // create our meter provider
 let (_influxive, meter_provider) = influxive::influxive_child_process_meter_provider(
-    influxive::InfluxiveChildSvcConfig {
-        database_path: Some(tmp.path().to_owned()),
-        ..Default::default()
-    },
+    influxive::InfluxiveChildSvcConfig::default()
+        .with_database_path(Some(tmp.path().to_owned())),
+    influxive::InfluxiveMeterProviderConfig::default(),
 ).await.unwrap();
 
 // register our meter provider
@@ -42,6 +41,7 @@ m.record(&opentelemetry_api::Context::new(), 3.14, &[]);
 // create our meter provider
 let meter_provider = influxive::influxive_external_meter_provider_token_auth(
     influxive::InfluxiveWriterConfig::default(),
+    influxive::InfluxiveMeterProviderConfig::default(),
     "http://127.0.0.1:8086",
     "my.bucket",
     "my.token",

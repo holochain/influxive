@@ -1,6 +1,6 @@
 [package]
 name = "influxive-otel"
-version = "0.0.1-alpha.8"
+version = "0.0.1-alpha.9"
 edition = "2021"
 description = "Opentelemetry metrics bindings for influxive-child-svc"
 license = "MIT OR Apache-2.0"
@@ -13,6 +13,7 @@ categories = ["development-tools"]
 [dependencies]
 influxive-core = { workspace = true }
 opentelemetry_api = { workspace = true }
+tokio = { workspace = true, features = [ "full" ] }
 
 [dev-dependencies]
 influxive-otel-atomic-obs = { workspace = true }

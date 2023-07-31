@@ -21,7 +21,10 @@
 //!
 //! // register the meter provider
 //! opentelemetry_api::global::set_meter_provider(
-//!     influxive_otel::InfluxiveMeterProvider::new(Arc::new(writer))
+//!     influxive_otel::InfluxiveMeterProvider::new(
+//!         Default::default(),
+//!         Arc::new(writer),
+//!     )
 //! );
 //!
 //! // create a metric
@@ -543,7 +546,38 @@ impl opentelemetry_api::metrics::InstrumentProvider
     }
 }
 
-/// InfluxiveDB Opentelemetry Meter Provider.
+/// Influxive InfluxDB Meter Provider Configuration.
+#[non_exhaustive]
+pub struct InfluxiveMeterProviderConfig {
+    /// Reporting interval for observable metrics.
+    /// Set to `None` to disable periodic reporting
+    /// (you'll need to call [InfluxiveMeterProvider::report] manually).
+    /// Defaults to 30 seconds.
+    pub observable_report_interval: Option<std::time::Duration>,
+}
+
+impl Default for InfluxiveMeterProviderConfig {
+    fn default() -> Self {
+        Self {
+            observable_report_interval: Some(std::time::Duration::from_secs(
+                30,
+            )),
+        }
+    }
+}
+
+impl InfluxiveMeterProviderConfig {
+    /// Apply [InfluxiveMeterProviderConfig::observable_report_interval].
+    pub fn with_observable_report_interval(
+        mut self,
+        observable_report_interval: Option<std::time::Duration>,
+    ) -> Self {
+        self.observable_report_interval = observable_report_interval;
+        self
+    }
+}
+
+/// Influxive InfluxDB Opentelemetry Meter Provider.
 #[derive(Clone)]
 pub struct InfluxiveMeterProvider(
     Arc<dyn MetricWriter + 'static + Send + Sync>,
@@ -554,9 +588,27 @@ impl InfluxiveMeterProvider {
     /// Construct a new InfluxiveMeterProvider instance with a given
     /// "Influxive" InfluxiveDB child process connector.
     pub fn new(
+        config: InfluxiveMeterProviderConfig,
         influxive: Arc<dyn MetricWriter + 'static + Send + Sync>,
     ) -> Self {
-        Self(influxive, ErasedMap::new())
+        let strong = ErasedMap::new();
+
+        if let Some(interval) = config.observable_report_interval {
+            let weak = Arc::downgrade(&strong);
+            tokio::task::spawn(async move {
+                let mut interval = tokio::time::interval(interval);
+                loop {
+                    interval.tick().await;
+                    if let Some(strong) = weak.upgrade() {
+                        strong.invoke();
+                    } else {
+                        break;
+                    }
+                }
+            });
+        }
+
+        Self(influxive, strong)
     }
 
     /// Manually report all observable metrics.

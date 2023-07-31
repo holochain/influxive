@@ -2,6 +2,71 @@ use super::*;
 use influxive_child_svc::*;
 
 #[tokio::test(flavor = "multi_thread")]
+async fn observable_report_interval() {
+    use influxive_otel_atomic_obs::MeterExt;
+
+    let tmp = tempfile::tempdir().unwrap();
+
+    let i = Arc::new(
+        InfluxiveChildSvc::new(
+            InfluxiveChildSvcConfig::default()
+                .with_database_path(Some(tmp.path().into()))
+                .with_metric_write(
+                    InfluxiveWriterConfig::default().with_batch_duration(
+                        std::time::Duration::from_millis(5),
+                    ),
+                ),
+        )
+        .await
+        .unwrap(),
+    );
+
+    let meter_provider = InfluxiveMeterProvider::new(
+        InfluxiveMeterProviderConfig::default()
+            .with_observable_report_interval(Some(
+                std::time::Duration::from_millis(5),
+            )),
+        i.clone(),
+    );
+    opentelemetry_api::global::set_meter_provider(meter_provider.clone());
+
+    let (metric, _) = opentelemetry_api::global::meter("test")
+        .u64_observable_counter_atomic("m_obs_cnt_u64_a", 0)
+        .init();
+
+    metric.add(1);
+
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+    for _ in 0..5 {
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        metric.add(1);
+    }
+
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+    let result = i
+        .query(
+            r#"from(bucket: "influxive")
+|> range(start: -15m, stop: now())
+"#,
+        )
+        .await
+        .unwrap();
+
+    println!("{result}");
+
+    let result_count = result.matches("m_obs_cnt_u64_a").count();
+    assert!(
+        result_count >= 5,
+        "expected result_count >= 5, got: {result_count}"
+    );
+
+    i.shutdown();
+    drop(i);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn sanity() {
     use influxive_otel_atomic_obs::MeterExt;
     use opentelemetry_api::metrics::MeterProvider;
@@ -9,16 +74,15 @@ async fn sanity() {
     let tmp = tempfile::tempdir().unwrap();
 
     let i = Arc::new(
-        InfluxiveChildSvc::new(InfluxiveChildSvcConfig {
-            influxd_path: Some("bad".into()),
-            influx_path: Some("bad".into()),
-            database_path: Some(tmp.path().into()),
-            metric_write: InfluxiveWriterConfig {
-                batch_duration: std::time::Duration::from_millis(5),
-                ..Default::default()
-            },
-            ..Default::default()
-        })
+        InfluxiveChildSvc::new(
+            InfluxiveChildSvcConfig::default()
+                .with_database_path(Some(tmp.path().into()))
+                .with_metric_write(
+                    InfluxiveWriterConfig::default().with_batch_duration(
+                        std::time::Duration::from_millis(5),
+                    ),
+                ),
+        )
         .await
         .unwrap(),
     );
@@ -27,7 +91,12 @@ async fn sanity() {
 
     i.ping().await.unwrap();
 
-    let meter_provider = InfluxiveMeterProvider::new(i.clone());
+    let meter_provider = InfluxiveMeterProvider::new(
+        InfluxiveMeterProviderConfig {
+            observable_report_interval: None,
+        },
+        i.clone(),
+    );
     opentelemetry_api::global::set_meter_provider(meter_provider.clone());
 
     let meter = opentelemetry_api::global::meter_provider().versioned_meter(

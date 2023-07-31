@@ -14,10 +14,8 @@
 //! let tmp = tempfile::tempdir().unwrap();
 //!
 //! let influxive = InfluxiveChildSvc::new(
-//!     InfluxiveChildSvcConfig {
-//!         database_path: Some(tmp.path().to_owned()),
-//!         ..Default::default()
-//!     },
+//!     InfluxiveChildSvcConfig::default()
+//!         .with_database_path(Some(tmp.path().to_owned())),
 //! ).await.unwrap();
 //!
 //! influxive.write_metric(
@@ -61,6 +59,7 @@ macro_rules! cmd_output {
 
 /// Configure the child process.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct InfluxiveChildSvcConfig {
     #[cfg(feature = "download_binaries")]
     /// If true, will fall back to downloading influx release binaries.
@@ -118,6 +117,80 @@ impl Default for InfluxiveChildSvcConfig {
             retention: "72h".to_string(),
             metric_write: InfluxiveWriterConfig::default(),
         }
+    }
+}
+
+impl InfluxiveChildSvcConfig {
+    /// Apply [InfluxiveChildSvcConfig::download_binaries].
+    pub fn with_download_binaries(mut self, download_binaries: bool) -> Self {
+        self.download_binaries = download_binaries;
+        self
+    }
+
+    /// Apply [InfluxiveChildSvcConfig::influxd_path].
+    pub fn with_influxd_path(
+        mut self,
+        influxd_path: Option<std::path::PathBuf>,
+    ) -> Self {
+        self.influxd_path = influxd_path;
+        self
+    }
+
+    /// Apply [InfluxiveChildSvcConfig::influx_path].
+    pub fn with_influx_path(
+        mut self,
+        influx_path: Option<std::path::PathBuf>,
+    ) -> Self {
+        self.influx_path = influx_path;
+        self
+    }
+
+    /// Apply [InfluxiveChildSvcConfig::database_path].
+    pub fn with_database_path(
+        mut self,
+        database_path: Option<std::path::PathBuf>,
+    ) -> Self {
+        self.database_path = database_path;
+        self
+    }
+
+    /// Apply [InfluxiveChildSvcConfig::user].
+    pub fn with_user(mut self, user: String) -> Self {
+        self.user = user;
+        self
+    }
+
+    /// Apply [InfluxiveChildSvcConfig::pass].
+    pub fn with_pass(mut self, pass: String) -> Self {
+        self.pass = pass;
+        self
+    }
+
+    /// Apply [InfluxiveChildSvcConfig::org].
+    pub fn with_org(mut self, org: String) -> Self {
+        self.org = org;
+        self
+    }
+
+    /// Apply [InfluxiveChildSvcConfig::bucket].
+    pub fn with_bucket(mut self, bucket: String) -> Self {
+        self.bucket = bucket;
+        self
+    }
+
+    /// Apply [InfluxiveChildSvcConfig::retention].
+    pub fn with_retention(mut self, retention: String) -> Self {
+        self.retention = retention;
+        self
+    }
+
+    /// Apply [InfluxiveChildSvcConfig::metric_write].
+    pub fn with_metric_write(
+        mut self,
+        metric_write: InfluxiveWriterConfig,
+    ) -> Self {
+        self.metric_write = metric_write;
+        self
     }
 }
 
@@ -196,14 +269,46 @@ impl InfluxiveChildSvc {
             &token,
         );
 
-        Ok(Self {
+        let bucket = config.bucket.clone();
+
+        let this = Self {
             config,
             host,
             token,
             child: std::sync::Mutex::new(Some(child)),
             influx_path,
             writer,
-        })
+        };
+
+        let mut millis = 10;
+
+        for _ in 0..10 {
+            // this ensures the db / bucket is created + ready to go
+            this.write_metric(
+                Metric::new(std::time::SystemTime::now(), "influxive.start")
+                    .with_field("value", true),
+            );
+
+            if let Ok(result) = this
+                .query(format!(
+                    r#"from(bucket: "{}")
+|> range(start: -15m, stop: now())
+|> filter(fn: (r) => r["_measurement"] == "influxive.start")
+|> filter(fn: (r) => r["_field"] == "value")"#,
+                    bucket
+                ))
+                .await
+            {
+                if result.split('\n').count() >= 3 {
+                    return Ok(this);
+                }
+            }
+
+            tokio::time::sleep(std::time::Duration::from_millis(millis)).await;
+            millis *= 2;
+        }
+
+        Err(err_other("Unable to start influxd"))
     }
 
     /// Shut down the child process. Further calls to it should error.
@@ -451,6 +556,7 @@ async fn spawn_influxd(
 
     tokio::task::spawn(async move {
         while let Some(line) = reader.next_line().await.expect("got line") {
+            tracing::trace!(?line, "influxd stdout");
             if line.contains("msg=Listening")
                 && line.contains("service=tcp-listener")
                 && line.contains("transport=http")

@@ -24,7 +24,10 @@ let writer = InfluxiveWriter::with_token_auth(
 
 // register the meter provider
 opentelemetry_api::global::set_meter_provider(
-    influxive_otel::InfluxiveMeterProvider::new(Arc::new(writer))
+    influxive_otel::InfluxiveMeterProvider::new(
+        Default::default(),
+        Arc::new(writer),
+    )
 );
 
 // create a metric

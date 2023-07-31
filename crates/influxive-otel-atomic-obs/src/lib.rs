@@ -3,6 +3,27 @@
 #![deny(unsafe_code)]
 //! Opentelemetry observable metric implementations based on std::sync::atomic
 //! types.
+//! Opentelemetry has a concept of "observable" metrics that are not reported
+//! as they are updated, but rather, when an update happens, they are polled.
+//! For ease-of-use in code, it is often desirable to have these metrics be
+//! backed by [std::sync::atomic] types, so that they can be easily updated
+//! throughout the code, and fetched whenever a metric reporting poll occurs.
+//! This crate provides the [MeterExt] trait and associated types to make
+//! it easy to use [std::sync::atomic] backed metrics with opentelemetry.
+//!
+//! ## Example
+//!
+//! ```
+//! use influxive_otel_atomic_obs::MeterExt;
+//!
+//! let (my_metric, _) = opentelemetry_api::global::meter("my_meter")
+//!     .u64_observable_gauge_atomic("my_metric", 0)
+//!     .init();
+//!
+//! my_metric.set(66); // probably will not be reported
+//! my_metric.set(99); // probably will not be reported
+//! my_metric.set(42); // will be reported next time reporting runs
+//! ```
 
 use opentelemetry_api::metrics::Result;
 use std::borrow::Cow;
@@ -20,14 +41,14 @@ fn u64_to_f64(v: u64) -> f64 {
 }
 
 /// Metric builder.
-pub struct InstrumentBuilderObsAtomic<'a, C, I, M>(
+pub struct AtomicObservableInstrumentBuilder<'a, C, I, M>(
     C,
     opentelemetry_api::metrics::AsyncInstrumentBuilder<'a, I, M>,
 )
 where
     I: opentelemetry_api::metrics::AsyncInstrument<M>;
 
-impl<'a, C, I, M> InstrumentBuilderObsAtomic<'a, C, I, M>
+impl<'a, C, I, M> AtomicObservableInstrumentBuilder<'a, C, I, M>
 where
     I: TryFrom<
         opentelemetry_api::metrics::AsyncInstrumentBuilder<'a, I, M>,
@@ -66,10 +87,11 @@ where
 /// Observable counter based on std::sync::atomic::AtomicU64
 /// (but storing f64 bits).
 #[derive(Debug, Clone)]
-pub struct CounterObsAtomicF64(Arc<AtomicU64>);
+pub struct AtomicObservableCounterF64(Arc<AtomicU64>);
 
-impl CounterObsAtomicF64 {
-    /// Construct a new ObsCounterAtomicF64, and associated opentelemetry metric.
+impl AtomicObservableCounterF64 {
+    /// Construct a new AtomicObservableCounterF64, and associated
+    /// opentelemetry metric.
     /// Note: If you would like any attributes applied to the metric reporting,
     /// please set them with the versioned_meter api before passing the meter
     /// into this constructor.
@@ -77,9 +99,9 @@ impl CounterObsAtomicF64 {
         meter: &opentelemetry_api::metrics::Meter,
         name: impl Into<std::borrow::Cow<'static, str>>,
         initial_value: f64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        CounterObsAtomicF64,
+        AtomicObservableCounterF64,
         opentelemetry_api::metrics::ObservableCounter<f64>,
         f64,
     > {
@@ -93,7 +115,7 @@ impl CounterObsAtomicF64 {
                 metric.observe(u64_to_f64(data2.load(Ordering::SeqCst)), &[]);
             },
         );
-        InstrumentBuilderObsAtomic(Self(data), builder)
+        AtomicObservableInstrumentBuilder(Self(data), builder)
     }
 
     /// Add to the current value of the up down counter.
@@ -121,10 +143,11 @@ impl CounterObsAtomicF64 {
 /// Observable up down counter based on std::sync::atomic::AtomicU64
 /// (but storing f64 bits).
 #[derive(Debug, Clone)]
-pub struct UpDownObsAtomicF64(Arc<AtomicU64>);
+pub struct AtomicObservableUpDownCounterF64(Arc<AtomicU64>);
 
-impl UpDownObsAtomicF64 {
-    /// Construct a new ObsUpDownAtomicF64, and associated opentelemetry metric.
+impl AtomicObservableUpDownCounterF64 {
+    /// Construct a new AtomicObservableUpDownCounterF64,
+    /// and associated opentelemetry metric.
     /// Note: If you would like any attributes applied to the metric reporting,
     /// please set them with the versioned_meter api before passing the meter
     /// into this constructor.
@@ -132,9 +155,9 @@ impl UpDownObsAtomicF64 {
         meter: &opentelemetry_api::metrics::Meter,
         name: impl Into<std::borrow::Cow<'static, str>>,
         initial_value: f64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        UpDownObsAtomicF64,
+        AtomicObservableUpDownCounterF64,
         opentelemetry_api::metrics::ObservableUpDownCounter<f64>,
         f64,
     > {
@@ -148,7 +171,7 @@ impl UpDownObsAtomicF64 {
                 metric.observe(u64_to_f64(data2.load(Ordering::SeqCst)), &[]);
             },
         );
-        InstrumentBuilderObsAtomic(Self(data), builder)
+        AtomicObservableInstrumentBuilder(Self(data), builder)
     }
 
     /// Add to (or subtract from) the current value of the up down counter.
@@ -171,10 +194,10 @@ impl UpDownObsAtomicF64 {
 /// Observable gauge based on std::sync::atomic::AtomicU64
 /// (but storing f64 bits).
 #[derive(Debug, Clone)]
-pub struct GaugeObsAtomicF64(Arc<AtomicU64>);
+pub struct AtomicObservableGaugeF64(Arc<AtomicU64>);
 
-impl GaugeObsAtomicF64 {
-    /// Construct a new ObsGaugeAtomicU64, and associated opentelemetry metric.
+impl AtomicObservableGaugeF64 {
+    /// Construct a new AtomicObservableGaugeF64, and associated opentelemetry metric.
     /// Note: If you would like any attributes applied to the metric reporting,
     /// please set them with the versioned_meter api before passing the meter
     /// into this constructor.
@@ -182,9 +205,9 @@ impl GaugeObsAtomicF64 {
         meter: &opentelemetry_api::metrics::Meter,
         name: impl Into<std::borrow::Cow<'static, str>>,
         initial_value: f64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        GaugeObsAtomicF64,
+        AtomicObservableGaugeF64,
         opentelemetry_api::metrics::ObservableGauge<f64>,
         f64,
     > {
@@ -198,7 +221,7 @@ impl GaugeObsAtomicF64 {
                 metric.observe(u64_to_f64(data2.load(Ordering::SeqCst)), &[]);
             },
         );
-        InstrumentBuilderObsAtomic(Self(data), builder)
+        AtomicObservableInstrumentBuilder(Self(data), builder)
     }
 
     /// Set the current value of the gauge.
@@ -214,9 +237,9 @@ impl GaugeObsAtomicF64 {
 
 /// Observable gauge based on std::sync::atomic::AtomicI64.
 #[derive(Debug, Clone)]
-pub struct GaugeObsAtomicI64(Arc<AtomicI64>);
+pub struct AtomicObservableGaugeI64(Arc<AtomicI64>);
 
-impl GaugeObsAtomicI64 {
+impl AtomicObservableGaugeI64 {
     /// Construct a new ObsGaugeAtomicI64, and associated opentelemetry metric.
     /// Note: If you would like any attributes applied to the metric reporting,
     /// please set them with the versioned_meter api before passing the meter
@@ -225,9 +248,9 @@ impl GaugeObsAtomicI64 {
         meter: &opentelemetry_api::metrics::Meter,
         name: impl Into<std::borrow::Cow<'static, str>>,
         initial_value: i64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        GaugeObsAtomicI64,
+        AtomicObservableGaugeI64,
         opentelemetry_api::metrics::ObservableGauge<i64>,
         i64,
     > {
@@ -241,7 +264,7 @@ impl GaugeObsAtomicI64 {
                 metric.observe(data2.load(Ordering::SeqCst), &[]);
             },
         );
-        InstrumentBuilderObsAtomic(Self(data), builder)
+        AtomicObservableInstrumentBuilder(Self(data), builder)
     }
 
     /// Set the current value of the gauge.
@@ -257,10 +280,11 @@ impl GaugeObsAtomicI64 {
 
 /// Observable up down counter based on std::sync::atomic::AtomicI64.
 #[derive(Debug, Clone)]
-pub struct UpDownObsAtomicI64(Arc<AtomicI64>);
+pub struct AtomicObservableUpDownCounterI64(Arc<AtomicI64>);
 
-impl UpDownObsAtomicI64 {
-    /// Construct a new ObsUpDownAtomicI64, and associated opentelemetry metric.
+impl AtomicObservableUpDownCounterI64 {
+    /// Construct a new AtomicObservableUpDownCounterI64,
+    /// and associated opentelemetry metric.
     /// Note: If you would like any attributes applied to the metric reporting,
     /// please set them with the versioned_meter api before passing the meter
     /// into this constructor.
@@ -268,9 +292,9 @@ impl UpDownObsAtomicI64 {
         meter: &opentelemetry_api::metrics::Meter,
         name: impl Into<std::borrow::Cow<'static, str>>,
         initial_value: i64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        UpDownObsAtomicI64,
+        AtomicObservableUpDownCounterI64,
         opentelemetry_api::metrics::ObservableUpDownCounter<i64>,
         i64,
     > {
@@ -284,7 +308,7 @@ impl UpDownObsAtomicI64 {
                 metric.observe(data2.load(Ordering::SeqCst), &[]);
             },
         );
-        InstrumentBuilderObsAtomic(Self(data), builder)
+        AtomicObservableInstrumentBuilder(Self(data), builder)
     }
 
     /// Add to (or subtract from) the current value of the gauge.
@@ -300,10 +324,11 @@ impl UpDownObsAtomicI64 {
 
 /// Observable counter based on std::sync::atomic::AtomicU64.
 #[derive(Debug, Clone)]
-pub struct CounterObsAtomicU64(Arc<AtomicU64>);
+pub struct AtomicObservableCounterU64(Arc<AtomicU64>);
 
-impl CounterObsAtomicU64 {
-    /// Construct a new ObsCounterAtomicU64, and associated opentelemetry metric.
+impl AtomicObservableCounterU64 {
+    /// Construct a new AtomicObservableCounterU64,
+    /// and associated opentelemetry metric.
     /// Note: If you would like any attributes applied to the metric reporting,
     /// please set them with the versioned_meter api before passing the meter
     /// into this constructor.
@@ -311,9 +336,9 @@ impl CounterObsAtomicU64 {
         meter: &opentelemetry_api::metrics::Meter,
         name: impl Into<std::borrow::Cow<'static, str>>,
         initial_value: u64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        CounterObsAtomicU64,
+        AtomicObservableCounterU64,
         opentelemetry_api::metrics::ObservableCounter<u64>,
         u64,
     > {
@@ -327,7 +352,7 @@ impl CounterObsAtomicU64 {
                 metric.observe(data2.load(Ordering::SeqCst), &[]);
             },
         );
-        InstrumentBuilderObsAtomic(Self(data), builder)
+        AtomicObservableInstrumentBuilder(Self(data), builder)
     }
 
     /// Add to the current value of the gauge.
@@ -343,10 +368,11 @@ impl CounterObsAtomicU64 {
 
 /// Observable gauge based on std::sync::atomic::AtomicU64.
 #[derive(Debug, Clone)]
-pub struct GaugeObsAtomicU64(Arc<AtomicU64>);
+pub struct AtomicObservableGaugeU64(Arc<AtomicU64>);
 
-impl GaugeObsAtomicU64 {
-    /// Construct a new ObsGaugeAtomicU64, and associated opentelemetry metric.
+impl AtomicObservableGaugeU64 {
+    /// Construct a new AtomicObservableGaugeU64,
+    /// and associated opentelemetry metric.
     /// Note: If you would like any attributes applied to the metric reporting,
     /// please set them with the versioned_meter api before passing the meter
     /// into this constructor.
@@ -354,9 +380,9 @@ impl GaugeObsAtomicU64 {
         meter: &opentelemetry_api::metrics::Meter,
         name: impl Into<std::borrow::Cow<'static, str>>,
         initial_value: u64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        GaugeObsAtomicU64,
+        AtomicObservableGaugeU64,
         opentelemetry_api::metrics::ObservableGauge<u64>,
         u64,
     > {
@@ -370,7 +396,7 @@ impl GaugeObsAtomicU64 {
                 metric.observe(data2.load(Ordering::SeqCst), &[]);
             },
         );
-        InstrumentBuilderObsAtomic(Self(data), builder)
+        AtomicObservableInstrumentBuilder(Self(data), builder)
     }
 
     /// Set the current value of the gauge.
@@ -392,9 +418,9 @@ pub trait MeterExt {
         &self,
         name: impl Into<Cow<'static, str>>,
         initial_value: f64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        CounterObsAtomicF64,
+        AtomicObservableCounterF64,
         opentelemetry_api::metrics::ObservableCounter<f64>,
         f64,
     >;
@@ -404,9 +430,9 @@ pub trait MeterExt {
         &self,
         name: impl Into<Cow<'static, str>>,
         initial_value: f64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        GaugeObsAtomicF64,
+        AtomicObservableGaugeF64,
         opentelemetry_api::metrics::ObservableGauge<f64>,
         f64,
     >;
@@ -417,9 +443,9 @@ pub trait MeterExt {
         &self,
         name: impl Into<Cow<'static, str>>,
         initial_value: f64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        UpDownObsAtomicF64,
+        AtomicObservableUpDownCounterF64,
         opentelemetry_api::metrics::ObservableUpDownCounter<f64>,
         f64,
     >;
@@ -429,9 +455,9 @@ pub trait MeterExt {
         &self,
         name: impl Into<Cow<'static, str>>,
         initial_value: i64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        GaugeObsAtomicI64,
+        AtomicObservableGaugeI64,
         opentelemetry_api::metrics::ObservableGauge<i64>,
         i64,
     >;
@@ -441,9 +467,9 @@ pub trait MeterExt {
         &self,
         name: impl Into<Cow<'static, str>>,
         initial_value: i64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        UpDownObsAtomicI64,
+        AtomicObservableUpDownCounterI64,
         opentelemetry_api::metrics::ObservableUpDownCounter<i64>,
         i64,
     >;
@@ -453,9 +479,9 @@ pub trait MeterExt {
         &self,
         name: impl Into<Cow<'static, str>>,
         initial_value: u64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        CounterObsAtomicU64,
+        AtomicObservableCounterU64,
         opentelemetry_api::metrics::ObservableCounter<u64>,
         u64,
     >;
@@ -465,9 +491,9 @@ pub trait MeterExt {
         &self,
         name: impl Into<Cow<'static, str>>,
         initial_value: u64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        GaugeObsAtomicU64,
+        AtomicObservableGaugeU64,
         opentelemetry_api::metrics::ObservableGauge<u64>,
         u64,
     >;
@@ -478,90 +504,90 @@ impl MeterExt for opentelemetry_api::metrics::Meter {
         &self,
         name: impl Into<Cow<'static, str>>,
         initial_value: f64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        CounterObsAtomicF64,
+        AtomicObservableCounterF64,
         opentelemetry_api::metrics::ObservableCounter<f64>,
         f64,
     > {
-        CounterObsAtomicF64::new(self, name, initial_value)
+        AtomicObservableCounterF64::new(self, name, initial_value)
     }
 
     fn f64_observable_gauge_atomic(
         &self,
         name: impl Into<Cow<'static, str>>,
         initial_value: f64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        GaugeObsAtomicF64,
+        AtomicObservableGaugeF64,
         opentelemetry_api::metrics::ObservableGauge<f64>,
         f64,
     > {
-        GaugeObsAtomicF64::new(self, name, initial_value)
+        AtomicObservableGaugeF64::new(self, name, initial_value)
     }
 
     fn f64_observable_up_down_counter_atomic(
         &self,
         name: impl Into<Cow<'static, str>>,
         initial_value: f64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        UpDownObsAtomicF64,
+        AtomicObservableUpDownCounterF64,
         opentelemetry_api::metrics::ObservableUpDownCounter<f64>,
         f64,
     > {
-        UpDownObsAtomicF64::new(self, name, initial_value)
+        AtomicObservableUpDownCounterF64::new(self, name, initial_value)
     }
 
     fn i64_observable_gauge_atomic(
         &self,
         name: impl Into<Cow<'static, str>>,
         initial_value: i64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        GaugeObsAtomicI64,
+        AtomicObservableGaugeI64,
         opentelemetry_api::metrics::ObservableGauge<i64>,
         i64,
     > {
-        GaugeObsAtomicI64::new(self, name, initial_value)
+        AtomicObservableGaugeI64::new(self, name, initial_value)
     }
 
     fn i64_observable_up_down_counter_atomic(
         &self,
         name: impl Into<Cow<'static, str>>,
         initial_value: i64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        UpDownObsAtomicI64,
+        AtomicObservableUpDownCounterI64,
         opentelemetry_api::metrics::ObservableUpDownCounter<i64>,
         i64,
     > {
-        UpDownObsAtomicI64::new(self, name, initial_value)
+        AtomicObservableUpDownCounterI64::new(self, name, initial_value)
     }
 
     fn u64_observable_counter_atomic(
         &self,
         name: impl Into<Cow<'static, str>>,
         initial_value: u64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        CounterObsAtomicU64,
+        AtomicObservableCounterU64,
         opentelemetry_api::metrics::ObservableCounter<u64>,
         u64,
     > {
-        CounterObsAtomicU64::new(self, name, initial_value)
+        AtomicObservableCounterU64::new(self, name, initial_value)
     }
 
     fn u64_observable_gauge_atomic(
         &self,
         name: impl Into<Cow<'static, str>>,
         initial_value: u64,
-    ) -> InstrumentBuilderObsAtomic<
+    ) -> AtomicObservableInstrumentBuilder<
         '_,
-        GaugeObsAtomicU64,
+        AtomicObservableGaugeU64,
         opentelemetry_api::metrics::ObservableGauge<u64>,
         u64,
     > {
-        GaugeObsAtomicU64::new(self, name, initial_value)
+        AtomicObservableGaugeU64::new(self, name, initial_value)
     }
 }
