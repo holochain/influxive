@@ -269,6 +269,8 @@ impl InfluxiveChildSvc {
             &token,
         );
 
+        let bucket = config.bucket.clone();
+
         let this = Self {
             config,
             host,
@@ -280,10 +282,28 @@ impl InfluxiveChildSvc {
 
         let mut millis = 10;
 
-        for _ in 0..5 {
-            if this.ping().await.is_ok() {
-                return Ok(this);
+        for _ in 0..10 {
+            // this ensures the db / bucket is created + ready to go
+            this.write_metric(
+                Metric::new(std::time::SystemTime::now(), "influxive.start")
+                    .with_field("value", true),
+            );
+
+            if let Ok(result) = this
+                .query(format!(
+                    r#"from(bucket: "{}")
+|> range(start: -15m, stop: now())
+|> filter(fn: (r) => r["_measurement"] == "influxive.start")
+|> filter(fn: (r) => r["_field"] == "value")"#,
+                    bucket
+                ))
+                .await
+            {
+                if result.split('\n').count() >= 3 {
+                    return Ok(this);
+                }
             }
+
             tokio::time::sleep(std::time::Duration::from_millis(millis)).await;
             millis *= 2;
         }
