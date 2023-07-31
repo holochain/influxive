@@ -269,14 +269,26 @@ impl InfluxiveChildSvc {
             &token,
         );
 
-        Ok(Self {
+        let this = Self {
             config,
             host,
             token,
             child: std::sync::Mutex::new(Some(child)),
             influx_path,
             writer,
-        })
+        };
+
+        let mut millis = 10;
+
+        for _ in 0..5 {
+            if this.ping().await.is_ok() {
+                return Ok(this);
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(millis)).await;
+            millis *= 2;
+        }
+
+        Err(err_other("Unable to start influxd"))
     }
 
     /// Shut down the child process. Further calls to it should error.
@@ -524,6 +536,7 @@ async fn spawn_influxd(
 
     tokio::task::spawn(async move {
         while let Some(line) = reader.next_line().await.expect("got line") {
+            tracing::trace!(?line, "influxd stdout");
             if line.contains("msg=Listening")
                 && line.contains("service=tcp-listener")
                 && line.contains("transport=http")
