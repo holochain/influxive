@@ -18,10 +18,8 @@ use influxive_child_svc::*;
 let tmp = tempfile::tempdir().unwrap();
 
 let influxive = InfluxiveChildSvc::new(
-    InfluxiveChildSvcConfig {
-        database_path: Some(tmp.path().to_owned()),
-        ..Default::default()
-    },
+    InfluxiveChildSvcConfig::default()
+        .with_database_path(Some(tmp.path().to_owned())),
 ).await.unwrap();
 
 influxive.write_metric(

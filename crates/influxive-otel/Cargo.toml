@@ -13,6 +13,7 @@ categories = ["development-tools"]
 [dependencies]
 influxive-core = { workspace = true }
 opentelemetry_api = { workspace = true }
+tokio = { workspace = true, features = [ "full" ] }
 
 [dev-dependencies]
 influxive-otel-atomic-obs = { workspace = true }

@@ -14,10 +14,9 @@
 //!
 //! // create our meter provider
 //! let (_influxive, meter_provider) = influxive::influxive_child_process_meter_provider(
-//!     influxive::InfluxiveChildSvcConfig {
-//!         database_path: Some(tmp.path().to_owned()),
-//!         ..Default::default()
-//!     },
+//!     influxive::InfluxiveChildSvcConfig::default()
+//!         .with_database_path(Some(tmp.path().to_owned())),
+//!     influxive::InfluxiveMeterProviderConfig::default(),
 //! ).await.unwrap();
 //!
 //! // register our meter provider
@@ -42,6 +41,7 @@
 //! // create our meter provider
 //! let meter_provider = influxive::influxive_external_meter_provider_token_auth(
 //!     influxive::InfluxiveWriterConfig::default(),
+//!     influxive::InfluxiveMeterProviderConfig::default(),
 //!     "http://127.0.0.1:8086",
 //!     "my.bucket",
 //!     "my.token",
@@ -72,13 +72,18 @@ pub use influxive_child_svc::InfluxiveChildSvcConfig;
 #[doc(inline)]
 pub use influxive_writer::InfluxiveWriterConfig;
 
+#[doc(inline)]
+pub use influxive_otel::InfluxiveMeterProviderConfig;
+
 /// Create an opentelemetry_api MeterProvider ready to provide metrics
 /// to a running child process instance of InfluxDB.
 pub async fn influxive_child_process_meter_provider(
-    config: InfluxiveChildSvcConfig,
+    svc_config: InfluxiveChildSvcConfig,
+    otel_config: InfluxiveMeterProviderConfig,
 ) -> std::io::Result<(Arc<InfluxiveChildSvc>, InfluxiveMeterProvider)> {
-    let influxive = Arc::new(InfluxiveChildSvc::new(config).await?);
-    let meter_provider = InfluxiveMeterProvider::new(influxive.clone());
+    let influxive = Arc::new(InfluxiveChildSvc::new(svc_config).await?);
+    let meter_provider =
+        InfluxiveMeterProvider::new(otel_config, influxive.clone());
     Ok((influxive, meter_provider))
 }
 
@@ -89,11 +94,13 @@ pub fn influxive_external_meter_provider_token_auth<
     B: AsRef<str>,
     T: AsRef<str>,
 >(
-    config: InfluxiveWriterConfig,
+    writer_config: InfluxiveWriterConfig,
+    otel_config: InfluxiveMeterProviderConfig,
     host: H,
     bucket: B,
     token: T,
 ) -> InfluxiveMeterProvider {
-    let writer = InfluxiveWriter::with_token_auth(config, host, bucket, token);
-    InfluxiveMeterProvider::new(Arc::new(writer))
+    let writer =
+        InfluxiveWriter::with_token_auth(writer_config, host, bucket, token);
+    InfluxiveMeterProvider::new(otel_config, Arc::new(writer))
 }
