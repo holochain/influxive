@@ -25,7 +25,7 @@
 //! my_metric.set(42); // will be reported next time reporting runs
 //! ```
 
-use opentelemetry_api::metrics::Result;
+use opentelemetry_api::metrics::*;
 use std::borrow::Cow;
 use std::sync::atomic::*;
 use std::sync::Arc;
@@ -41,53 +41,101 @@ fn u64_to_f64(v: u64) -> f64 {
 }
 
 /// Metric builder.
-pub struct AtomicObservableInstrumentBuilder<'a, C, I, M>(
-    C,
-    opentelemetry_api::metrics::AsyncInstrumentBuilder<'a, I, M>,
-)
+pub struct AtomicObservableInstrumentBuilder<'a, C, I, M>
 where
-    I: opentelemetry_api::metrics::AsyncInstrument<M>;
+    I: AsyncInstrument<M>,
+{
+    meter: &'a Meter,
+    builder: AsyncInstrumentBuilder<'a, I, M>,
+    rcbi: Rcbi<C, I>,
+}
 
 impl<'a, C, I, M> AtomicObservableInstrumentBuilder<'a, C, I, M>
 where
-    I: TryFrom<
-        opentelemetry_api::metrics::AsyncInstrumentBuilder<'a, I, M>,
-        Error = opentelemetry_api::metrics::MetricsError,
-    >,
-    I: opentelemetry_api::metrics::AsyncInstrument<M>,
+    I: TryFrom<AsyncInstrumentBuilder<'a, I, M>, Error = MetricsError>,
+    I: AsyncInstrument<M>,
+    I: Clone,
 {
     /// Set a description.
     pub fn with_description(
         self,
         description: impl Into<Cow<'static, str>>,
     ) -> Self {
-        let Self(core, builder) = self;
-        Self(core, builder.with_description(description))
+        let Self {
+            meter,
+            builder,
+            rcbi,
+        } = self;
+        Self {
+            meter,
+            builder: builder.with_description(description),
+            rcbi,
+        }
     }
 
     /// Set a unit.
-    pub fn with_unit(self, unit: opentelemetry_api::metrics::Unit) -> Self {
-        let Self(core, builder) = self;
-        Self(core, builder.with_unit(unit))
+    pub fn with_unit(self, unit: Unit) -> Self {
+        let Self {
+            meter,
+            builder,
+            rcbi,
+        } = self;
+        Self {
+            meter,
+            builder: builder.with_unit(unit),
+            rcbi,
+        }
     }
 
     /// Initialize the metric.
     pub fn try_init(self) -> Result<(C, I)> {
-        let Self(core, builder) = self;
-        builder.try_init().map(move |r| (core, r))
+        let Self {
+            meter,
+            builder,
+            rcbi,
+        } = self;
+        let instrument = builder.try_init()?;
+        let core = rcbi(instrument.clone(), meter)?;
+        Ok((core, instrument))
     }
 
     /// Initialize the metric.
     pub fn init(self) -> (C, I) {
-        let Self(core, builder) = self;
-        (core, builder.init())
+        let Self {
+            meter,
+            builder,
+            rcbi,
+        } = self;
+        let instrument = builder.init();
+        let core = rcbi(instrument.clone(), meter)
+            .expect("failed to register callback");
+        (core, instrument)
+    }
+}
+
+type Rcbi<C, I> =
+    Box<dyn FnOnce(I, &Meter) -> Result<C> + 'static + Send + Sync>;
+
+struct Unreg(Option<Box<dyn CallbackRegistration>>);
+
+impl std::fmt::Debug for Unreg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Unreg").finish()
+    }
+}
+
+impl Drop for Unreg {
+    fn drop(&mut self) {
+        if let Some(mut r) = self.0.take() {
+            let _ = r.unregister();
+        }
     }
 }
 
 /// Observable counter based on std::sync::atomic::AtomicU64
 /// (but storing f64 bits).
 #[derive(Debug, Clone)]
-pub struct AtomicObservableCounterF64(Arc<AtomicU64>);
+pub struct AtomicObservableCounterF64(Arc<AtomicU64>, Arc<Unreg>);
 
 impl AtomicObservableCounterF64 {
     /// Construct a new AtomicObservableCounterF64, and associated
@@ -96,26 +144,40 @@ impl AtomicObservableCounterF64 {
     /// please set them with the versioned_meter api before passing the meter
     /// into this constructor.
     pub fn new(
-        meter: &opentelemetry_api::metrics::Meter,
+        meter: &Meter,
         name: impl Into<std::borrow::Cow<'static, str>>,
         initial_value: f64,
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableCounterF64,
-        opentelemetry_api::metrics::ObservableCounter<f64>,
+        ObservableCounter<f64>,
         f64,
     > {
         let data = Arc::new(AtomicU64::new(f64_to_u64(initial_value)));
-        let builder = meter.f64_observable_counter(name);
-        let data2 = data.clone();
-        let builder = builder.with_callback(
-            move |metric: &dyn opentelemetry_api::metrics::AsyncInstrument<
-                f64,
-            >| {
-                metric.observe(u64_to_f64(data2.load(Ordering::SeqCst)), &[]);
+        let weak = Arc::downgrade(&data);
+        let rcbi = Box::new(
+            move |instrument: ObservableCounter<f64>, meter: &Meter| {
+                let unreg = meter.register_callback(
+                    &[instrument.as_any()],
+                    move |obs| {
+                        if let Some(data) = weak.upgrade() {
+                            obs.observe_f64(
+                                &instrument,
+                                u64_to_f64(data.load(Ordering::SeqCst)),
+                                &[],
+                            );
+                        }
+                    },
+                )?;
+                Ok(Self(data, Arc::new(Unreg(Some(unreg)))))
             },
         );
-        AtomicObservableInstrumentBuilder(Self(data), builder)
+
+        AtomicObservableInstrumentBuilder {
+            meter,
+            builder: meter.f64_observable_counter(name),
+            rcbi,
+        }
     }
 
     /// Add to the current value of the up down counter.
@@ -143,7 +205,7 @@ impl AtomicObservableCounterF64 {
 /// Observable up down counter based on std::sync::atomic::AtomicU64
 /// (but storing f64 bits).
 #[derive(Debug, Clone)]
-pub struct AtomicObservableUpDownCounterF64(Arc<AtomicU64>);
+pub struct AtomicObservableUpDownCounterF64(Arc<AtomicU64>, Arc<Unreg>);
 
 impl AtomicObservableUpDownCounterF64 {
     /// Construct a new AtomicObservableUpDownCounterF64,
@@ -152,26 +214,40 @@ impl AtomicObservableUpDownCounterF64 {
     /// please set them with the versioned_meter api before passing the meter
     /// into this constructor.
     pub fn new(
-        meter: &opentelemetry_api::metrics::Meter,
+        meter: &Meter,
         name: impl Into<std::borrow::Cow<'static, str>>,
         initial_value: f64,
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableUpDownCounterF64,
-        opentelemetry_api::metrics::ObservableUpDownCounter<f64>,
+        ObservableUpDownCounter<f64>,
         f64,
     > {
         let data = Arc::new(AtomicU64::new(f64_to_u64(initial_value)));
-        let builder = meter.f64_observable_up_down_counter(name);
-        let data2 = data.clone();
-        let builder = builder.with_callback(
-            move |metric: &dyn opentelemetry_api::metrics::AsyncInstrument<
-                f64,
-            >| {
-                metric.observe(u64_to_f64(data2.load(Ordering::SeqCst)), &[]);
+        let weak = Arc::downgrade(&data);
+        let rcbi = Box::new(
+            move |instrument: ObservableUpDownCounter<f64>, meter: &Meter| {
+                let unreg = meter.register_callback(
+                    &[instrument.as_any()],
+                    move |obs| {
+                        if let Some(data) = weak.upgrade() {
+                            obs.observe_f64(
+                                &instrument,
+                                u64_to_f64(data.load(Ordering::SeqCst)),
+                                &[],
+                            );
+                        }
+                    },
+                )?;
+                Ok(Self(data, Arc::new(Unreg(Some(unreg)))))
             },
         );
-        AtomicObservableInstrumentBuilder(Self(data), builder)
+
+        AtomicObservableInstrumentBuilder {
+            meter,
+            builder: meter.f64_observable_up_down_counter(name),
+            rcbi,
+        }
     }
 
     /// Add to (or subtract from) the current value of the up down counter.
@@ -194,7 +270,7 @@ impl AtomicObservableUpDownCounterF64 {
 /// Observable gauge based on std::sync::atomic::AtomicU64
 /// (but storing f64 bits).
 #[derive(Debug, Clone)]
-pub struct AtomicObservableGaugeF64(Arc<AtomicU64>);
+pub struct AtomicObservableGaugeF64(Arc<AtomicU64>, Arc<Unreg>);
 
 impl AtomicObservableGaugeF64 {
     /// Construct a new AtomicObservableGaugeF64, and associated opentelemetry metric.
@@ -202,26 +278,39 @@ impl AtomicObservableGaugeF64 {
     /// please set them with the versioned_meter api before passing the meter
     /// into this constructor.
     pub fn new(
-        meter: &opentelemetry_api::metrics::Meter,
+        meter: &Meter,
         name: impl Into<std::borrow::Cow<'static, str>>,
         initial_value: f64,
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableGaugeF64,
-        opentelemetry_api::metrics::ObservableGauge<f64>,
+        ObservableGauge<f64>,
         f64,
     > {
         let data = Arc::new(AtomicU64::new(f64_to_u64(initial_value)));
-        let builder = meter.f64_observable_gauge(name);
-        let data2 = data.clone();
-        let builder = builder.with_callback(
-            move |metric: &dyn opentelemetry_api::metrics::AsyncInstrument<
-                f64,
-            >| {
-                metric.observe(u64_to_f64(data2.load(Ordering::SeqCst)), &[]);
-            },
-        );
-        AtomicObservableInstrumentBuilder(Self(data), builder)
+        let weak = Arc::downgrade(&data);
+        let rcbi =
+            Box::new(move |instrument: ObservableGauge<f64>, meter: &Meter| {
+                let unreg = meter.register_callback(
+                    &[instrument.as_any()],
+                    move |obs| {
+                        if let Some(data) = weak.upgrade() {
+                            obs.observe_f64(
+                                &instrument,
+                                u64_to_f64(data.load(Ordering::SeqCst)),
+                                &[],
+                            );
+                        }
+                    },
+                )?;
+                Ok(Self(data, Arc::new(Unreg(Some(unreg)))))
+            });
+
+        AtomicObservableInstrumentBuilder {
+            meter,
+            builder: meter.f64_observable_gauge(name),
+            rcbi,
+        }
     }
 
     /// Set the current value of the gauge.
@@ -237,7 +326,7 @@ impl AtomicObservableGaugeF64 {
 
 /// Observable gauge based on std::sync::atomic::AtomicI64.
 #[derive(Debug, Clone)]
-pub struct AtomicObservableGaugeI64(Arc<AtomicI64>);
+pub struct AtomicObservableGaugeI64(Arc<AtomicI64>, Arc<Unreg>);
 
 impl AtomicObservableGaugeI64 {
     /// Construct a new ObsGaugeAtomicI64, and associated opentelemetry metric.
@@ -245,26 +334,39 @@ impl AtomicObservableGaugeI64 {
     /// please set them with the versioned_meter api before passing the meter
     /// into this constructor.
     pub fn new(
-        meter: &opentelemetry_api::metrics::Meter,
+        meter: &Meter,
         name: impl Into<std::borrow::Cow<'static, str>>,
         initial_value: i64,
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableGaugeI64,
-        opentelemetry_api::metrics::ObservableGauge<i64>,
+        ObservableGauge<i64>,
         i64,
     > {
         let data = Arc::new(AtomicI64::new(initial_value));
-        let builder = meter.i64_observable_gauge(name);
-        let data2 = data.clone();
-        let builder = builder.with_callback(
-            move |metric: &dyn opentelemetry_api::metrics::AsyncInstrument<
-                i64,
-            >| {
-                metric.observe(data2.load(Ordering::SeqCst), &[]);
-            },
-        );
-        AtomicObservableInstrumentBuilder(Self(data), builder)
+        let weak = Arc::downgrade(&data);
+        let rcbi =
+            Box::new(move |instrument: ObservableGauge<i64>, meter: &Meter| {
+                let unreg = meter.register_callback(
+                    &[instrument.as_any()],
+                    move |obs| {
+                        if let Some(data) = weak.upgrade() {
+                            obs.observe_i64(
+                                &instrument,
+                                data.load(Ordering::SeqCst),
+                                &[],
+                            );
+                        }
+                    },
+                )?;
+                Ok(Self(data, Arc::new(Unreg(Some(unreg)))))
+            });
+
+        AtomicObservableInstrumentBuilder {
+            meter,
+            builder: meter.i64_observable_gauge(name),
+            rcbi,
+        }
     }
 
     /// Set the current value of the gauge.
@@ -280,7 +382,7 @@ impl AtomicObservableGaugeI64 {
 
 /// Observable up down counter based on std::sync::atomic::AtomicI64.
 #[derive(Debug, Clone)]
-pub struct AtomicObservableUpDownCounterI64(Arc<AtomicI64>);
+pub struct AtomicObservableUpDownCounterI64(Arc<AtomicI64>, Arc<Unreg>);
 
 impl AtomicObservableUpDownCounterI64 {
     /// Construct a new AtomicObservableUpDownCounterI64,
@@ -289,26 +391,40 @@ impl AtomicObservableUpDownCounterI64 {
     /// please set them with the versioned_meter api before passing the meter
     /// into this constructor.
     pub fn new(
-        meter: &opentelemetry_api::metrics::Meter,
+        meter: &Meter,
         name: impl Into<std::borrow::Cow<'static, str>>,
         initial_value: i64,
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableUpDownCounterI64,
-        opentelemetry_api::metrics::ObservableUpDownCounter<i64>,
+        ObservableUpDownCounter<i64>,
         i64,
     > {
         let data = Arc::new(AtomicI64::new(initial_value));
-        let builder = meter.i64_observable_up_down_counter(name);
-        let data2 = data.clone();
-        let builder = builder.with_callback(
-            move |metric: &dyn opentelemetry_api::metrics::AsyncInstrument<
-                i64,
-            >| {
-                metric.observe(data2.load(Ordering::SeqCst), &[]);
+        let weak = Arc::downgrade(&data);
+        let rcbi = Box::new(
+            move |instrument: ObservableUpDownCounter<i64>, meter: &Meter| {
+                let unreg = meter.register_callback(
+                    &[instrument.as_any()],
+                    move |obs| {
+                        if let Some(data) = weak.upgrade() {
+                            obs.observe_i64(
+                                &instrument,
+                                data.load(Ordering::SeqCst),
+                                &[],
+                            );
+                        }
+                    },
+                )?;
+                Ok(Self(data, Arc::new(Unreg(Some(unreg)))))
             },
         );
-        AtomicObservableInstrumentBuilder(Self(data), builder)
+
+        AtomicObservableInstrumentBuilder {
+            meter,
+            builder: meter.i64_observable_up_down_counter(name),
+            rcbi,
+        }
     }
 
     /// Add to (or subtract from) the current value of the gauge.
@@ -324,7 +440,7 @@ impl AtomicObservableUpDownCounterI64 {
 
 /// Observable counter based on std::sync::atomic::AtomicU64.
 #[derive(Debug, Clone)]
-pub struct AtomicObservableCounterU64(Arc<AtomicU64>);
+pub struct AtomicObservableCounterU64(Arc<AtomicU64>, Arc<Unreg>);
 
 impl AtomicObservableCounterU64 {
     /// Construct a new AtomicObservableCounterU64,
@@ -333,26 +449,40 @@ impl AtomicObservableCounterU64 {
     /// please set them with the versioned_meter api before passing the meter
     /// into this constructor.
     pub fn new(
-        meter: &opentelemetry_api::metrics::Meter,
+        meter: &Meter,
         name: impl Into<std::borrow::Cow<'static, str>>,
         initial_value: u64,
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableCounterU64,
-        opentelemetry_api::metrics::ObservableCounter<u64>,
+        ObservableCounter<u64>,
         u64,
     > {
         let data = Arc::new(AtomicU64::new(initial_value));
-        let builder = meter.u64_observable_counter(name);
-        let data2 = data.clone();
-        let builder = builder.with_callback(
-            move |metric: &dyn opentelemetry_api::metrics::AsyncInstrument<
-                u64,
-            >| {
-                metric.observe(data2.load(Ordering::SeqCst), &[]);
+        let weak = Arc::downgrade(&data);
+        let rcbi = Box::new(
+            move |instrument: ObservableCounter<u64>, meter: &Meter| {
+                let unreg = meter.register_callback(
+                    &[instrument.as_any()],
+                    move |obs| {
+                        if let Some(data) = weak.upgrade() {
+                            obs.observe_u64(
+                                &instrument,
+                                data.load(Ordering::SeqCst),
+                                &[],
+                            );
+                        }
+                    },
+                )?;
+                Ok(Self(data, Arc::new(Unreg(Some(unreg)))))
             },
         );
-        AtomicObservableInstrumentBuilder(Self(data), builder)
+
+        AtomicObservableInstrumentBuilder {
+            meter,
+            builder: meter.u64_observable_counter(name),
+            rcbi,
+        }
     }
 
     /// Add to the current value of the gauge.
@@ -368,7 +498,7 @@ impl AtomicObservableCounterU64 {
 
 /// Observable gauge based on std::sync::atomic::AtomicU64.
 #[derive(Debug, Clone)]
-pub struct AtomicObservableGaugeU64(Arc<AtomicU64>);
+pub struct AtomicObservableGaugeU64(Arc<AtomicU64>, Arc<Unreg>);
 
 impl AtomicObservableGaugeU64 {
     /// Construct a new AtomicObservableGaugeU64,
@@ -377,26 +507,39 @@ impl AtomicObservableGaugeU64 {
     /// please set them with the versioned_meter api before passing the meter
     /// into this constructor.
     pub fn new(
-        meter: &opentelemetry_api::metrics::Meter,
+        meter: &Meter,
         name: impl Into<std::borrow::Cow<'static, str>>,
         initial_value: u64,
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableGaugeU64,
-        opentelemetry_api::metrics::ObservableGauge<u64>,
+        ObservableGauge<u64>,
         u64,
     > {
         let data = Arc::new(AtomicU64::new(initial_value));
-        let builder = meter.u64_observable_gauge(name);
-        let data2 = data.clone();
-        let builder = builder.with_callback(
-            move |metric: &dyn opentelemetry_api::metrics::AsyncInstrument<
-                u64,
-            >| {
-                metric.observe(data2.load(Ordering::SeqCst), &[]);
-            },
-        );
-        AtomicObservableInstrumentBuilder(Self(data), builder)
+        let weak = Arc::downgrade(&data);
+        let rcbi =
+            Box::new(move |instrument: ObservableGauge<u64>, meter: &Meter| {
+                let unreg = meter.register_callback(
+                    &[instrument.as_any()],
+                    move |obs| {
+                        if let Some(data) = weak.upgrade() {
+                            obs.observe_u64(
+                                &instrument,
+                                data.load(Ordering::SeqCst),
+                                &[],
+                            );
+                        }
+                    },
+                )?;
+                Ok(Self(data, Arc::new(Unreg(Some(unreg)))))
+            });
+
+        AtomicObservableInstrumentBuilder {
+            meter,
+            builder: meter.u64_observable_gauge(name),
+            rcbi,
+        }
     }
 
     /// Set the current value of the gauge.
@@ -410,7 +553,7 @@ impl AtomicObservableGaugeU64 {
     }
 }
 
-/// Extension trait for opentelemetry_api::metrics::Meter
+/// Extension trait for Meter
 pub trait MeterExt {
     /// Get an observable f64 up down counter backed by a
     /// std::atomic::AtomicU64.
@@ -421,7 +564,7 @@ pub trait MeterExt {
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableCounterF64,
-        opentelemetry_api::metrics::ObservableCounter<f64>,
+        ObservableCounter<f64>,
         f64,
     >;
 
@@ -433,7 +576,7 @@ pub trait MeterExt {
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableGaugeF64,
-        opentelemetry_api::metrics::ObservableGauge<f64>,
+        ObservableGauge<f64>,
         f64,
     >;
 
@@ -446,7 +589,7 @@ pub trait MeterExt {
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableUpDownCounterF64,
-        opentelemetry_api::metrics::ObservableUpDownCounter<f64>,
+        ObservableUpDownCounter<f64>,
         f64,
     >;
 
@@ -458,7 +601,7 @@ pub trait MeterExt {
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableGaugeI64,
-        opentelemetry_api::metrics::ObservableGauge<i64>,
+        ObservableGauge<i64>,
         i64,
     >;
 
@@ -470,7 +613,7 @@ pub trait MeterExt {
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableUpDownCounterI64,
-        opentelemetry_api::metrics::ObservableUpDownCounter<i64>,
+        ObservableUpDownCounter<i64>,
         i64,
     >;
 
@@ -482,7 +625,7 @@ pub trait MeterExt {
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableCounterU64,
-        opentelemetry_api::metrics::ObservableCounter<u64>,
+        ObservableCounter<u64>,
         u64,
     >;
 
@@ -494,12 +637,12 @@ pub trait MeterExt {
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableGaugeU64,
-        opentelemetry_api::metrics::ObservableGauge<u64>,
+        ObservableGauge<u64>,
         u64,
     >;
 }
 
-impl MeterExt for opentelemetry_api::metrics::Meter {
+impl MeterExt for Meter {
     fn f64_observable_counter_atomic(
         &self,
         name: impl Into<Cow<'static, str>>,
@@ -507,7 +650,7 @@ impl MeterExt for opentelemetry_api::metrics::Meter {
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableCounterF64,
-        opentelemetry_api::metrics::ObservableCounter<f64>,
+        ObservableCounter<f64>,
         f64,
     > {
         AtomicObservableCounterF64::new(self, name, initial_value)
@@ -520,7 +663,7 @@ impl MeterExt for opentelemetry_api::metrics::Meter {
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableGaugeF64,
-        opentelemetry_api::metrics::ObservableGauge<f64>,
+        ObservableGauge<f64>,
         f64,
     > {
         AtomicObservableGaugeF64::new(self, name, initial_value)
@@ -533,7 +676,7 @@ impl MeterExt for opentelemetry_api::metrics::Meter {
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableUpDownCounterF64,
-        opentelemetry_api::metrics::ObservableUpDownCounter<f64>,
+        ObservableUpDownCounter<f64>,
         f64,
     > {
         AtomicObservableUpDownCounterF64::new(self, name, initial_value)
@@ -546,7 +689,7 @@ impl MeterExt for opentelemetry_api::metrics::Meter {
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableGaugeI64,
-        opentelemetry_api::metrics::ObservableGauge<i64>,
+        ObservableGauge<i64>,
         i64,
     > {
         AtomicObservableGaugeI64::new(self, name, initial_value)
@@ -559,7 +702,7 @@ impl MeterExt for opentelemetry_api::metrics::Meter {
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableUpDownCounterI64,
-        opentelemetry_api::metrics::ObservableUpDownCounter<i64>,
+        ObservableUpDownCounter<i64>,
         i64,
     > {
         AtomicObservableUpDownCounterI64::new(self, name, initial_value)
@@ -572,7 +715,7 @@ impl MeterExt for opentelemetry_api::metrics::Meter {
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableCounterU64,
-        opentelemetry_api::metrics::ObservableCounter<u64>,
+        ObservableCounter<u64>,
         u64,
     > {
         AtomicObservableCounterU64::new(self, name, initial_value)
@@ -585,7 +728,7 @@ impl MeterExt for opentelemetry_api::metrics::Meter {
     ) -> AtomicObservableInstrumentBuilder<
         '_,
         AtomicObservableGaugeU64,
-        opentelemetry_api::metrics::ObservableGauge<u64>,
+        ObservableGauge<u64>,
         u64,
     > {
         AtomicObservableGaugeU64::new(self, name, initial_value)
