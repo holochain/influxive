@@ -331,7 +331,7 @@ impl InfluxiveWriter {
                 tracing::warn!("metrics overloaded, dropping metric");
             }
             Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
-                unreachable!("should be impossible, sender task panic?");
+                /* ignore this, can happen during shutdown */
             }
         }
     }
