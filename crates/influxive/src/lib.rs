@@ -28,7 +28,7 @@
 //!     .init();
 //!
 //! // make a recording
-//! m.record(&opentelemetry_api::Context::new(), 3.14, &[]);
+//! m.record(3.14, &[]);
 //! # _influxive.shutdown();
 //! # }
 //! ```
@@ -56,7 +56,7 @@
 //!     .init();
 //!
 //! // make a recording
-//! m.record(&opentelemetry_api::Context::new(), 3.14, &[]);
+//! m.record(3.14, &[]);
 //! # }
 //! ```
 

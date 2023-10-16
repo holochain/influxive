@@ -36,7 +36,7 @@ let m = opentelemetry_api::global::meter("my.meter")
     .init();
 
 // make a recording
-m.record(&opentelemetry_api::Context::new(), 3.14, &[]);
+m.record(3.14, &[]);
 ```
 
 <!-- cargo-rdme end -->

@@ -212,22 +212,20 @@ async fn sanity() {
     for _ in 0..12 {
         tokio::time::sleep(std::time::Duration::from_millis(1)).await;
 
-        let cx = opentelemetry_api::Context::new();
-
-        m_cnt_f64.add(&cx, 1.1, &[]);
-        m_hist_f64.record(&cx, 1.1, &[]);
+        m_cnt_f64.add(1.1, &[]);
+        m_hist_f64.record(1.1, &[]);
         m_obs_cnt_f64_a.add(1.1);
         m_obs_g_f64_a.set(-1.1);
         m_obs_ud_f64_a.add(-1.1);
-        m_ud_f64.add(&cx, -1.1, &[]);
+        m_ud_f64.add(-1.1, &[]);
 
-        m_hist_i64.record(&cx, -1, &[]);
+        m_hist_i64.record(-1, &[]);
         m_obs_g_i64_a.set(-1);
         m_obs_ud_i64_a.add(-1);
-        m_ud_i64.add(&cx, -1, &[]);
+        m_ud_i64.add(-1, &[]);
 
-        m_cnt_u64.add(&cx, 1, &[]);
-        m_hist_u64.record(&cx, 1, &[]);
+        m_cnt_u64.add(1, &[]);
+        m_hist_u64.record(1, &[]);
         m_obs_cnt_u64_a.add(1);
         m_obs_g_u64_a.set(1);
 
