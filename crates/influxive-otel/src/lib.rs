@@ -33,7 +33,7 @@
 //!     .init();
 //!
 //! // make a recording
-//! m.record(&opentelemetry_api::Context::new(), 3.14, &[]);
+//! m.record(3.14, &[]);
 //! # }
 //! ```
 
@@ -141,12 +141,7 @@ impl<T: 'static + std::fmt::Display + Into<DataType> + Send + Sync>
 impl<T: 'static + std::fmt::Display + Into<DataType> + Send + Sync>
     opentelemetry_api::metrics::SyncCounter<T> for InfluxiveUniMetric<T>
 {
-    fn add(
-        &self,
-        _cx: &opentelemetry_api::Context,
-        value: T,
-        attributes: &[opentelemetry_api::KeyValue],
-    ) {
+    fn add(&self, value: T, attributes: &[opentelemetry_api::KeyValue]) {
         self.report(value, attributes)
     }
 }
@@ -154,12 +149,7 @@ impl<T: 'static + std::fmt::Display + Into<DataType> + Send + Sync>
 impl<T: 'static + std::fmt::Display + Into<DataType> + Send + Sync>
     opentelemetry_api::metrics::SyncUpDownCounter<T> for InfluxiveUniMetric<T>
 {
-    fn add(
-        &self,
-        _cx: &opentelemetry_api::Context,
-        value: T,
-        attributes: &[opentelemetry_api::KeyValue],
-    ) {
+    fn add(&self, value: T, attributes: &[opentelemetry_api::KeyValue]) {
         self.report(value, attributes)
     }
 }
@@ -167,12 +157,7 @@ impl<T: 'static + std::fmt::Display + Into<DataType> + Send + Sync>
 impl<T: 'static + std::fmt::Display + Into<DataType> + Send + Sync>
     opentelemetry_api::metrics::SyncHistogram<T> for InfluxiveUniMetric<T>
 {
-    fn record(
-        &self,
-        _cx: &opentelemetry_api::Context,
-        value: T,
-        attributes: &[opentelemetry_api::KeyValue],
-    ) {
+    fn record(&self, value: T, attributes: &[opentelemetry_api::KeyValue]) {
         self.report(value, attributes)
     }
 }
