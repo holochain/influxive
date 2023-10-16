@@ -1,6 +1,6 @@
 [package]
 name = "influxive-downloader"
-version = "0.0.1-alpha.11"
+version = "0.0.2-alpha.1"
 edition = "2021"
 description = "Influxive system download utility"
 license = "MIT OR Apache-2.0"
