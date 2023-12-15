@@ -136,7 +136,10 @@ mod tgt {
 }
 
 #[cfg(not(any(
-    all(target_os = "linux", target_arch = "x86_64"),
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
     all(
         any(target_os = "macos", target_os = "ios", target_os = "tvos"),
         target_arch = "x86_64"
