@@ -15,11 +15,12 @@ jobs:
           ubuntu-latest,
         ]
         toolchain: [
+          1.75.0,
           stable,
         ]
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Rust Toolchain
         run: |
