@@ -9,8 +9,10 @@ members = [
   "crates/influxive",
 ]
 
+resolver = "2"
+
 [workspace.dependencies]
-base64 = "0.21"
+base64 = "0.22"
 digest = "0.10"
 dirs = "5"
 flate2 = "1"
