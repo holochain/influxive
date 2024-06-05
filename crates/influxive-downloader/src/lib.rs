@@ -1,5 +1,4 @@
 #![deny(missing_docs)]
-#![deny(warnings)]
 #![deny(unsafe_code)]
 //! Influxive system download utility. It's probably not useful to use this
 //! crate directly. It mainly exists as separate from the

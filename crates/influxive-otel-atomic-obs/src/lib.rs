@@ -1,5 +1,4 @@
 #![deny(missing_docs)]
-#![deny(warnings)]
 #![deny(unsafe_code)]
 //! Opentelemetry observable metric implementations based on std::sync::atomic
 //! types.
@@ -135,7 +134,10 @@ impl Drop for Unreg {
 /// Observable counter based on std::sync::atomic::AtomicU64
 /// (but storing f64 bits).
 #[derive(Debug, Clone)]
-pub struct AtomicObservableCounterF64(Arc<AtomicU64>, Arc<Unreg>);
+pub struct AtomicObservableCounterF64(
+    Arc<AtomicU64>,
+    #[allow(unused)] Arc<Unreg>,
+);
 
 impl AtomicObservableCounterF64 {
     /// Construct a new AtomicObservableCounterF64, and associated
@@ -205,7 +207,10 @@ impl AtomicObservableCounterF64 {
 /// Observable up down counter based on std::sync::atomic::AtomicU64
 /// (but storing f64 bits).
 #[derive(Debug, Clone)]
-pub struct AtomicObservableUpDownCounterF64(Arc<AtomicU64>, Arc<Unreg>);
+pub struct AtomicObservableUpDownCounterF64(
+    Arc<AtomicU64>,
+    #[allow(unused)] Arc<Unreg>,
+);
 
 impl AtomicObservableUpDownCounterF64 {
     /// Construct a new AtomicObservableUpDownCounterF64,
@@ -270,7 +275,10 @@ impl AtomicObservableUpDownCounterF64 {
 /// Observable gauge based on std::sync::atomic::AtomicU64
 /// (but storing f64 bits).
 #[derive(Debug, Clone)]
-pub struct AtomicObservableGaugeF64(Arc<AtomicU64>, Arc<Unreg>);
+pub struct AtomicObservableGaugeF64(
+    Arc<AtomicU64>,
+    #[allow(unused)] Arc<Unreg>,
+);
 
 impl AtomicObservableGaugeF64 {
     /// Construct a new AtomicObservableGaugeF64, and associated opentelemetry metric.
@@ -326,7 +334,10 @@ impl AtomicObservableGaugeF64 {
 
 /// Observable gauge based on std::sync::atomic::AtomicI64.
 #[derive(Debug, Clone)]
-pub struct AtomicObservableGaugeI64(Arc<AtomicI64>, Arc<Unreg>);
+pub struct AtomicObservableGaugeI64(
+    Arc<AtomicI64>,
+    #[allow(unused)] Arc<Unreg>,
+);
 
 impl AtomicObservableGaugeI64 {
     /// Construct a new ObsGaugeAtomicI64, and associated opentelemetry metric.
@@ -382,7 +393,10 @@ impl AtomicObservableGaugeI64 {
 
 /// Observable up down counter based on std::sync::atomic::AtomicI64.
 #[derive(Debug, Clone)]
-pub struct AtomicObservableUpDownCounterI64(Arc<AtomicI64>, Arc<Unreg>);
+pub struct AtomicObservableUpDownCounterI64(
+    Arc<AtomicI64>,
+    #[allow(unused)] Arc<Unreg>,
+);
 
 impl AtomicObservableUpDownCounterI64 {
     /// Construct a new AtomicObservableUpDownCounterI64,
@@ -440,7 +454,10 @@ impl AtomicObservableUpDownCounterI64 {
 
 /// Observable counter based on std::sync::atomic::AtomicU64.
 #[derive(Debug, Clone)]
-pub struct AtomicObservableCounterU64(Arc<AtomicU64>, Arc<Unreg>);
+pub struct AtomicObservableCounterU64(
+    Arc<AtomicU64>,
+    #[allow(unused)] Arc<Unreg>,
+);
 
 impl AtomicObservableCounterU64 {
     /// Construct a new AtomicObservableCounterU64,
@@ -498,7 +515,10 @@ impl AtomicObservableCounterU64 {
 
 /// Observable gauge based on std::sync::atomic::AtomicU64.
 #[derive(Debug, Clone)]
-pub struct AtomicObservableGaugeU64(Arc<AtomicU64>, Arc<Unreg>);
+pub struct AtomicObservableGaugeU64(
+    Arc<AtomicU64>,
+    #[allow(unused)] Arc<Unreg>,
+);
 
 impl AtomicObservableGaugeU64 {
     /// Construct a new AtomicObservableGaugeU64,

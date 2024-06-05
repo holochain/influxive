@@ -1,5 +1,4 @@
 #![deny(missing_docs)]
-#![deny(warnings)]
 #![deny(unsafe_code)]
 //! Run influxd as a child process.
 //!
@@ -514,7 +513,7 @@ async fn validate_influx(
     // alas, the cli prints out the unhelpful version "dev".
     if is_cli && !ver.contains("build_date: 2023-04-28") {
         return Err(err_other(format!("invalid build_date: {ver}")));
-    } else if !is_cli && !ver.contains("InfluxDB v2.7.1") {
+    } else if !is_cli && !ver.contains("InfluxDB v2.7.6") {
         return Err(err_other(format!("invalid version: {ver}")));
     }
 
