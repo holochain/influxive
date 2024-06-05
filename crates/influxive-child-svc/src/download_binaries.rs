@@ -4,15 +4,15 @@ use influxive_downloader::*;
 mod tgt {
     use super::*;
     pub const DL_DB: Option<DownloadSpec> = Some(DownloadSpec {
-        url: "https://dl.influxdata.com/influxdb/releases/influxdb2-2.7.1-linux-amd64.tar.gz",
+        url: "https://dl.influxdata.com/influxdb/releases/influxdb2-2.7.6_linux_amd64.tar.gz",
         archive: Archive::TarGz {
-            inner_path: "influxdb2_linux_amd64/influxd",
+            inner_path: "influxdb2-2.7.6/usr/bin/influxd",
         },
         archive_hash: Hash::Sha2_256(&hex_literal::hex!(
-            "e5ecfc15c35af55641ffc92680ad0fb043aa51a942944252e214e2a551c60ebb"
+            "a29d56dbd18edeeb893f61fa0517f5d9140d2e073f2ecf805912f4b91f308825"
         )),
         file_hash: Hash::Sha2_256(&hex_literal::hex!(
-            "68547e6e8b05088f1d824c9923412d22045003026f4f6e844630a126c10a97e1"
+            "5c8fcb17accb9b0e689e0c6259aaace16ac42e5c0a2c99cef158de843d14d759"
         )),
         file_prefix: "influxd",
         file_extension: "",
@@ -37,15 +37,15 @@ mod tgt {
 mod tgt {
     use super::*;
     pub const DL_DB: Option<DownloadSpec> = Some(DownloadSpec {
-        url: "https://dl.influxdata.com/influxdb/releases/influxdb2-2.7.1-linux-arm64.tar.gz",
+        url: "https://dl.influxdata.com/influxdb/releases/influxdb2-2.7.6_linux_arm64.tar.gz",
         archive: Archive::TarGz {
-            inner_path: "influxdb2_linux_arm64/influxd",
+            inner_path: "influxdb2-2.7.6/usr/bin/influxd",
         },
         archive_hash: Hash::Sha2_256(&hex_literal::hex!(
-            "b88989dae0c802fdee499fa07aae837139da3c786293c74e9d7c46b8460510d4"
+            "96b5574a2772da7d54f496d881e741f3339027a563502e55d8084504b0e22e90"
         )),
         file_hash: Hash::Sha2_256(&hex_literal::hex!(
-            "b966602eb1b43b5d9633446f91d3b84cdd15abfdcaa3aac3dd210368e4eca85e"
+            "e2d8b81c11e6bec68bc61adb224ba58d87be951c6a0ce9f9907c55a3b69ed864"
         )),
         file_prefix: "influxd",
         file_extension: "",
@@ -68,20 +68,20 @@ mod tgt {
 
 #[cfg(all(
     any(target_os = "macos", target_os = "ios", target_os = "tvos"),
-    target_arch = "x86_64"
+    any(target_arch = "x86_64", target_arch = "aarch64")
 ))]
 mod tgt {
     use super::*;
     pub const DL_DB: Option<DownloadSpec> = Some(DownloadSpec {
-        url: "https://dl.influxdata.com/influxdb/releases/influxdb2-2.7.1-darwin-amd64.tar.gz",
+        url: "https://dl.influxdata.com/influxdb/releases/influxdb2-2.7.6_darwin_amd64.tar.gz",
         archive: Archive::TarGz {
-            inner_path: "influxdb2_darwin_amd64/influxd",
+            inner_path: "influxdb2-2.7.6/influxd",
         },
         archive_hash: Hash::Sha2_256(&hex_literal::hex!(
-            "af709215dce8767ae131802f050c139d0ae179c13f29bb68ca5baa2716aa1874"
+            "f484a41ad390ccae7a4cc99960ed0eb6a0309487696cf646b63122c96dbd139d"
         )),
         file_hash: Hash::Sha2_256(&hex_literal::hex!(
-            "8eb1e1391f6c6619c44b5edd27a39806cb7de89adb8712f66e74379801da4ce3"
+            "01d6a032a9508c8e860726824e9c50e177d3afa5333c69c753d6c776c5d89e4a"
         )),
         file_prefix: "influxd",
         file_extension: "",
@@ -106,15 +106,15 @@ mod tgt {
 mod tgt {
     use super::*;
     pub const DL_DB: Option<DownloadSpec> = Some(DownloadSpec {
-        url: "https://dl.influxdata.com/influxdb/releases/influxdb2-2.7.1-windows-amd64.zip",
+        url: "https://dl.influxdata.com/influxdb/releases/influxdb2-2.7.6-windows.zip",
         archive: Archive::Zip {
-            inner_path: "influxdb2_windows_amd64\\influxd.exe",
+            inner_path: "influxd.exe",
         },
         archive_hash: Hash::Sha2_256(&hex_literal::hex!(
-            "8e0acbc7dba55a794450fa53d72cd48958d11d39e619394a268e06a6c03af672"
+            "a874451d9e41dbcd63486c382b9d8bd4c3e06d7ebfdd78b0c7cdfa16bf7e5df3"
         )),
         file_hash: Hash::Sha2_256(&hex_literal::hex!(
-            "841f6739607765fc2ffc39be9514dfdce597381368987bab48f5d9cab8d544c7"
+            "c6ad343c46eff73fcebcbeead06d30564293c6ece2dfaa829dfe1811370450ed"
         )),
         file_prefix: "influxd",
         file_extension: ".exe",
