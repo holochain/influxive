@@ -1,6 +1,6 @@
 [package]
 name = "influxive-otel"
-version = "0.0.2-alpha.1"
+version = "0.0.3-alpha.1"
 edition = "2021"
 description = "Opentelemetry metrics bindings for influxive-child-svc"
 license = "MIT OR Apache-2.0"
