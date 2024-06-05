@@ -7,8 +7,8 @@ const DASHBOARD_TEMPLATE: &[u8] =
 async fn sanity() {
     let tmp = tempfile::tempdir().unwrap();
 
-    const METRIC: &'static str = "my.metric";
-    const VALUE: &'static str = "value";
+    const METRIC: &str = "my.metric";
+    const VALUE: &str = "value";
 
     let i = InfluxiveChildSvc::new(
         InfluxiveChildSvcConfig::default()
@@ -56,7 +56,7 @@ async fn sanity() {
         .unwrap();
 
     // make sure the result contains at least 10 of the entries
-    let line_count = result.split("\n").count();
+    let line_count = result.split('\n').count();
     assert!(line_count >= 10, "{result}");
 
     drop(i);

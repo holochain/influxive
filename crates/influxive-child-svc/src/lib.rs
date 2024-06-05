@@ -1,5 +1,4 @@
 #![deny(missing_docs)]
-#![deny(warnings)]
 #![deny(unsafe_code)]
 //! Run influxd as a child process.
 //!

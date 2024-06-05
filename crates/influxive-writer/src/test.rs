@@ -123,7 +123,7 @@ async fn writer_stress() {
             );
             writer.write_metric(
                 Metric::new(std::time::SystemTime::now(), "my.metric")
-                    .with_field("val", 3.14)
+                    .with_field("val", 3.77)
                     .with_tag("tag", "test-tag"),
             );
         }
@@ -150,7 +150,7 @@ async fn writer_stress() {
             );
             writer.write_metric(
                 Metric::new(std::time::SystemTime::now(), "my.metric")
-                    .with_field("val", 3.14)
+                    .with_field("val", 3.77)
                     .with_tag("tag", "test-tag"),
             );
         }
