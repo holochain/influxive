@@ -1,14 +1,14 @@
 [package]
 name = "influxive-otel-atomic-obs"
-version = "0.0.4-alpha.1"
-edition = "2021"
+version = { workspace = true }
 description = "Opentelemetry observable metric implementations based on std::sync::atomic types"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/holochain/influxive"
 documentation = "https://docs.rs/influxive-otel-atomic-obs"
-authors = [ "Holochain Core Dev Team <devcore@holochain.org>" ]
-keywords = ["metrics"]
-categories = ["development-tools"]
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+authors = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
 
 [dependencies]
 opentelemetry_api = { workspace = true }

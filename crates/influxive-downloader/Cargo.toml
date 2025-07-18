@@ -1,14 +1,14 @@
 [package]
 name = "influxive-downloader"
-version = "0.0.4-alpha.1"
-edition = "2021"
+version = { workspace = true }
 description = "Influxive system download utility"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/holochain/influxive"
 documentation = "https://docs.rs/influxive-downloader"
-authors = [ "Holochain Core Dev Team <devcore@holochain.org>" ]
-keywords = ["metrics"]
-categories = ["development-tools"]
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+authors = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
 
 [dependencies]
 base64 = { workspace = true }
