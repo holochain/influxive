@@ -1,19 +1,19 @@
 [package]
 name = "influxive-otel"
-version = "0.0.4-alpha.1"
-edition = "2021"
+version = { workspace = true }
 description = "Opentelemetry metrics bindings for influxive-child-svc"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/holochain/influxive"
 documentation = "https://docs.rs/influxive-otel"
-authors = [ "Holochain Core Dev Team <devcore@holochain.org>" ]
-keywords = ["metrics"]
-categories = ["development-tools"]
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+authors = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
 
 [dependencies]
 influxive-core = { workspace = true }
 opentelemetry_api = { workspace = true }
-tokio = { workspace = true, features = [ "full" ] }
+tokio = { workspace = true, features = ["full"] }
 
 [dev-dependencies]
 influxive-otel-atomic-obs = { workspace = true }

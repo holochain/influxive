@@ -290,11 +290,10 @@ impl InfluxiveChildSvc {
 
             if let Ok(result) = this
                 .query(format!(
-                    r#"from(bucket: "{}")
+                    r#"from(bucket: "{bucket}")
 |> range(start: -15m, stop: now())
 |> filter(fn: (r) => r["_measurement"] == "influxive.start")
 |> filter(fn: (r) => r["_field"] == "value")"#,
-                    bucket
                 ))
                 .await
             {
@@ -499,13 +498,13 @@ async fn validate_influx(
                 {
                     ver
                 } else {
-                    return Err(err_other(format!("{:?}", err_list)));
+                    return Err(err_other(format!("{err_list:?}",)));
                 }
             }
 
             #[cfg(not(feature = "download_binaries"))]
             {
-                return Err(err_other(format!("{:?}", err_list)));
+                return Err(err_other(format!("{err_list:?}",)));
             }
         }
     };

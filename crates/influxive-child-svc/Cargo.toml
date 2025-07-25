@@ -1,14 +1,14 @@
 [package]
 name = "influxive-child-svc"
-version = "0.0.4-alpha.1"
-edition = "2021"
+version = { workspace = true }
 description = "Run influxd as a child process"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/holochain/influxive"
 documentation = "https://docs.rs/influxive-child-svc"
-authors = [ "Holochain Core Dev Team <devcore@holochain.org>" ]
-keywords = ["metrics"]
-categories = ["development-tools"]
+edition = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+authors = { workspace = true }
+keywords = { workspace = true }
+categories = { workspace = true }
 
 [dependencies]
 hex-literal = { workspace = true, optional = true }
@@ -16,12 +16,12 @@ influxive-core = { workspace = true }
 influxive-writer = { workspace = true }
 influxive-downloader = { workspace = true, optional = true }
 tempfile = { workspace = true }
-tokio = { workspace = true, features = [ "full" ] }
+tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
 
 [features]
-default = [ "download_binaries" ]
+default = ["download_binaries"]
 
 # compiles in the ability to download release influxd and influx binaries
 # as a fallback incase they are not found on the path
-download_binaries = [ "hex-literal", "influxive-downloader" ]
+download_binaries = ["hex-literal", "influxive-downloader"]

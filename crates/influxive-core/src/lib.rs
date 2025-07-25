@@ -28,7 +28,7 @@ pub fn err_other<E>(error: E) -> std::io::Error
 where
     E: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
-    std::io::Error::new(std::io::ErrorKind::Other, error.into())
+    std::io::Error::other(error)
 }
 
 /// String type handling various string types usable by InfluxDB.
