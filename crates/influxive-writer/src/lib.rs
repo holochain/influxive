@@ -37,6 +37,8 @@
 //! ### Writing to a file on disk
 //!
 //! ```rust
+//! # #[tokio::main(flavor = "multi_thread")]
+//! # async fn main() {
 //! use influxive_core::Metric;
 //! use influxive_writer::*;
 //!
@@ -56,6 +58,7 @@
 //! .with_field("value", 3.14)
 //! .with_tag("tag", "test-tag")
 //! );
+//! # }
 //! ```
 
 use influxive_core::*;
