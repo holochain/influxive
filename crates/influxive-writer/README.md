@@ -8,7 +8,7 @@
 <!-- cargo-rdme start -->
 
 Rust utility for efficiently writing metrics to InfluxDB.
-Metrics can be written directly to a running InfluxDB instance or 
+Metrics can be written directly to a running InfluxDB instance or
 written to a Line Protocol file on disk that can be pushed to InfluxDB using Telegraf.
 
 ## Example
@@ -36,6 +36,7 @@ writer.write_metric(
 );
 ```
 
+
 ### Writing to a file on disk
 
 ```rust
@@ -44,19 +45,19 @@ use influxive_writer::*;
 
 let path = std::path::PathBuf::from("my-metrics.line");
 let writer = InfluxiveWriter::with_token_auth(
-    InfluxiveWriterConfig::with_line_protocol_file(path),
-    "http://127.0.0.1:8086",
-    "my.bucket",
-    "my.token",
+InfluxiveWriterConfig::with_line_protocol_file(path),
+"http://127.0.0.1:8086",
+"my.bucket",
+"my.token",
 );
 
 writer.write_metric(
-    Metric::new(
-        std::time::SystemTime::now(),
-        "my.metric",
-    )
-    .with_field("value", 3.14)
-    .with_tag("tag", "test-tag")
+Metric::new(
+std::time::SystemTime::now(),
+"my.metric",
+)
+.with_field("value", 3.14)
+.with_tag("tag", "test-tag")
 );
 ```
 
