@@ -15,3 +15,6 @@ influxdb = { workspace = true }
 influxive-core = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.20.0"
