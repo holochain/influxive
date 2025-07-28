@@ -194,17 +194,14 @@ pub mod types {
             _bucket: String,
             _token: String,
         ) -> Box<dyn Backend + 'static + Send + Sync> {
-            let Ok(file) = tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async {
-                    tokio::fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open(&self.file_path)
-                        .await
-                })
-            }) else {
-                panic!("Failed to create file");
+            let Ok(file) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&self.file_path)
+            else {
+                panic!("Failed to create file at path: {:?}", self.file_path);
             };
+            let file = tokio::fs::File::from_std(file);
             let writer = tokio::io::BufWriter::new(file);
             let out: Box<dyn Backend + 'static + Send + Sync> =
                 Box::new(LineProtocolFileBackend {
