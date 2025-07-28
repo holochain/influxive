@@ -154,13 +154,17 @@ pub mod types {
             Box::pin(async move {
                 let buffer = std::mem::take(&mut self.buffer);
                 for query in buffer {
-                    let v = query.build_with_opts(true).unwrap();
-                    let line = format!("{}\n", v.get());
-                    if let Err(err) =
-                        self.writer.write_all(line.as_bytes()).await
-                    {
-                        tracing::warn!(?err, "write metrics error");
-                        return;
+                    let maybe_valid = query.build_with_opts(true);
+                    match maybe_valid {
+                        Err(err) => tracing::warn!(?err, "write metrics error"),
+                        Ok(v) => {
+                            let line = format!("{}\n", v.get());
+                            if let Err(err) =
+                                self.writer.write_all(line.as_bytes()).await
+                            {
+                                tracing::warn!(?err, "write metrics error");
+                            }
+                        }
                     }
                 }
                 if let Err(err) = self.writer.flush().await {
