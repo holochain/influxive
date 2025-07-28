@@ -50,9 +50,9 @@ impl DataTypeExt for DataType {
 
 /// Backend types you probably don't need.
 pub mod types {
-    use std::io::Write;
-    use influxdb::Query;
     use super::*;
+    use influxdb::Query;
+    use tokio::io::AsyncWriteExt;
 
     /// backend
     pub trait Backend: 'static + Send + Sync {
@@ -134,11 +134,10 @@ pub mod types {
 
     struct LineProtocolFileBackend {
         buffer: Vec<influxdb::WriteQuery>,
-        writer: std::io::BufWriter<std::fs::File>,
+        writer: tokio::io::BufWriter<tokio::fs::File>,
     }
 
     impl Backend for LineProtocolFileBackend {
-
         fn buffer_metric(&mut self, metric: Metric) {
             self.buffer.push(metric_to_query(metric));
         }
@@ -152,16 +151,21 @@ pub mod types {
         ) -> std::pin::Pin<
             Box<dyn std::future::Future<Output = ()> + '_ + Send + Sync>,
         > {
-
             Box::pin(async move {
                 let buffer = std::mem::take(&mut self.buffer);
                 for query in buffer {
                     let v = query.build_with_opts(true).unwrap();
-                    let line: String = v.get();
-                    self.writer.write_all(line.as_bytes()).unwrap();
-                    self.writer.write_all(b"\n").unwrap();
+                    let line = format!("{}\n", v.get());
+                    if let Err(err) =
+                        self.writer.write_all(line.as_bytes()).await
+                    {
+                        tracing::warn!(?err, "write metrics error");
+                        return;
+                    }
                 }
-                self.writer.flush().unwrap();
+                if let Err(err) = self.writer.flush().await {
+                    tracing::warn!(?err, "write metrics error");
+                }
             })
         }
     }
@@ -186,13 +190,23 @@ pub mod types {
             _bucket: String,
             _token: String,
         ) -> Box<dyn Backend + 'static + Send + Sync> {
-            let file = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&self.file_path).unwrap();
-            let writer = std::io::BufWriter::new(file);
+            let Ok(file) = tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    tokio::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(&self.file_path)
+                        .await
+                })
+            }) else {
+                panic!("Failed to create file");
+            };
+            let writer = tokio::io::BufWriter::new(file);
             let out: Box<dyn Backend + 'static + Send + Sync> =
-                Box::new(LineProtocolFileBackend { buffer: Vec::new(), writer});
+                Box::new(LineProtocolFileBackend {
+                    buffer: Vec::new(),
+                    writer,
+                });
             out
         }
     }
@@ -231,7 +245,7 @@ impl Default for InfluxiveWriterConfig {
 }
 
 impl InfluxiveWriterConfig {
-    ///
+    /// Construct a Config that uses a LineProtocolFileBackendFactory
     pub fn with_line_protocol_file(path: std::path::PathBuf) -> Self {
         Self {
             batch_duration: std::time::Duration::from_millis(100),

@@ -90,15 +90,19 @@ impl BackendFactory for TestFactory {
 }
 
 /// Setup InfluxiveWriter to use LineProtocolFileBackendFactory
-fn create_file_writer(temp_dir: &tempfile::TempDir) -> (std::path::PathBuf, InfluxiveWriter) {
+fn create_file_writer(
+    temp_dir: &tempfile::TempDir,
+) -> (std::path::PathBuf, InfluxiveWriter) {
     std::fs::create_dir_all(&temp_dir).unwrap();
-    let test_path = temp_dir.path().join(std::path::PathBuf::from("test_metrics.line"));
-    let mut config = InfluxiveWriterConfig::with_line_protocol_file(test_path.clone());
+    let test_path = temp_dir
+        .path()
+        .join(std::path::PathBuf::from("test_metrics.line"));
+    let mut config =
+        InfluxiveWriterConfig::with_line_protocol_file(test_path.clone());
     config.batch_duration = std::time::Duration::from_millis(30);
     let writer = InfluxiveWriter::with_token_auth(config, "", "", "");
     (test_path, writer)
 }
-
 
 #[tokio::test(flavor = "multi_thread")]
 async fn writer_file_one() {
@@ -129,7 +133,6 @@ async fn writer_file_one() {
     let res = reader.lines().next().transpose().unwrap();
     assert!(res.is_some());
 }
-
 
 #[tokio::test(flavor = "multi_thread")]
 async fn writer_file_many() {
@@ -171,11 +174,10 @@ async fn writer_file_many() {
     assert_eq!(count, 11);
 }
 
-
 #[tokio::test(flavor = "multi_thread")]
 async fn writer_file_all_data_types() {
-    use std::io::BufRead;
     use influxive_core::{DataType, Metric, StringType};
+    use std::io::BufRead;
 
     let temp_dir = tempfile::TempDir::new().unwrap();
     let (test_path, writer) = create_file_writer(&temp_dir);
@@ -186,14 +188,20 @@ async fn writer_file_all_data_types() {
         ("float_field", DataType::F64(42.5)),
         ("int_field", DataType::I64(-42)),
         ("uint_field", DataType::U64(42)),
-        ("string_field", DataType::String(StringType::from("test value"))),
-        ("quote_field", DataType::String(StringType::from("a \"test\" value"))),
+        (
+            "string_field",
+            DataType::String(StringType::from("test value")),
+        ),
+        (
+            "quote_field",
+            DataType::String(StringType::from("a \"test\" value")),
+        ),
     ];
 
     for (field_name, value) in test_cases {
         writer.write_metric(
             Metric::new(std::time::SystemTime::UNIX_EPOCH, "test_metric")
-                .with_field(field_name, value)
+                .with_field(field_name, value),
         );
     }
 
@@ -208,16 +216,41 @@ async fn writer_file_all_data_types() {
     assert_eq!(lines.len(), 6, "Expected 6 lines of metrics");
 
     // Verify each line contains the correct field value format
-    assert!(lines.iter().any(|line| line.contains("bool_field=true")), "Boolean field not found");
-    assert!(lines.iter().any(|line| line.contains("float_field=42.5")), "Float field not found");
-    assert!(lines.iter().any(|line| line.contains("int_field=-42i")), "Integer field not found");
-    assert!(lines.iter().any(|line| line.contains("uint_field=42u")), "Unsigned integer field not found");
-    assert!(lines.iter().any(|line| line.contains(r#"string_field="test value""#)), "String field not found");
-    assert!(lines.iter().any(|line| line.contains(r#"quote_field="a \"test\" value"#)), "String field not found");
+    assert!(
+        lines.iter().any(|line| line.contains("bool_field=true")),
+        "Boolean field not found"
+    );
+    assert!(
+        lines.iter().any(|line| line.contains("float_field=42.5")),
+        "Float field not found"
+    );
+    assert!(
+        lines.iter().any(|line| line.contains("int_field=-42i")),
+        "Integer field not found"
+    );
+    assert!(
+        lines.iter().any(|line| line.contains("uint_field=42u")),
+        "Unsigned integer field not found"
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.contains(r#"string_field="test value""#)),
+        "String field not found"
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.contains(r#"quote_field="a \"test\" value"#)),
+        "String field not found"
+    );
 
     // Verify metric name and timestamp format for one line
     let first_line = &lines[0];
-    assert!(first_line.starts_with("test_metric "), "Incorrect metric name format");
+    assert!(
+        first_line.starts_with("test_metric "),
+        "Incorrect metric name format"
+    );
     assert!(first_line.ends_with(" 0"), "Incorrect timestamp format"); // UNIX_EPOCH timestamp should be 0
 }
 
