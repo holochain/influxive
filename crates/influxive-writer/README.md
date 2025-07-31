@@ -44,12 +44,8 @@ use influxive_core::Metric;
 use influxive_writer::*;
 
 let path = std::path::PathBuf::from("my-metrics.line");
-let writer = InfluxiveWriter::with_token_auth(
-InfluxiveWriterConfig::with_line_protocol_file(path),
-"http://127.0.0.1:8086",
-"my.bucket",
-"my.token",
-);
+let config = InfluxiveWriterConfig::with_line_protocol_file(path.clone());
+let writer = InfluxiveWriter::with_token_auth(config, "", "", "");
 
 writer.write_metric(
 Metric::new(
