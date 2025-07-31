@@ -183,8 +183,7 @@ pub mod types {
             Box::pin(async move {
                 let buffer = std::mem::take(&mut self.buffer);
                 for query in buffer {
-                    let maybe_valid = query.build_with_opts(true);
-                    match maybe_valid {
+                    match query.build_with_opts(true) {
                         Err(err) => tracing::warn!(?err, "write metrics error"),
                         Ok(v) => {
                             let line = format!("{}\n", v.get());
@@ -210,7 +209,7 @@ pub mod types {
     }
 
     impl LineProtocolFileBackendFactory {
-        /// Constructor
+        /// Creates a new instance with the provided file path.
         pub fn new(file_path: std::path::PathBuf) -> Self {
             Self { file_path }
         }
