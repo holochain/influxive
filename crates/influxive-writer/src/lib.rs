@@ -223,14 +223,13 @@ pub mod types {
             _bucket: String,
             _token: String,
         ) -> Box<dyn Backend + 'static + Send + Sync> {
-            let Ok(file) = std::fs::OpenOptions::new()
+            let file = match std::fs::OpenOptions::new()
                 .create(true)
                 .append(true)
-                .open(&self.file_path)
-            else {
-                panic!("Failed to create file at path: {:?}", self.file_path);
+                .open(&self.file_path) {
+                Ok(file) => tokio::fs::File::from_std(file),
+                Err(e) => panic!("Failed to create file at path: {:?}: {}", self.file_path, e),
             };
-            let file = tokio::fs::File::from_std(file);
             let writer = tokio::io::BufWriter::new(file);
             let out: Box<dyn Backend + 'static + Send + Sync> =
                 Box::new(LineProtocolFileBackend {
