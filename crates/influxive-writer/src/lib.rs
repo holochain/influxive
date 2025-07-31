@@ -225,9 +225,13 @@ pub mod types {
             let file = match std::fs::OpenOptions::new()
                 .create(true)
                 .append(true)
-                .open(&self.file_path) {
+                .open(&self.file_path)
+            {
                 Ok(file) => tokio::fs::File::from_std(file),
-                Err(e) => panic!("Failed to create file at path: {:?}: {}", self.file_path, e),
+                Err(e) => panic!(
+                    "Failed to create file at path: {:?}: {}",
+                    self.file_path, e
+                ),
             };
             let writer = tokio::io::BufWriter::new(file);
             let out: Box<dyn Backend + 'static + Send + Sync> =
