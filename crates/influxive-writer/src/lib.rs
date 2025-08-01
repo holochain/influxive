@@ -33,7 +33,6 @@
 //! # }
 //! ```
 //!
-//!
 //! ### Writing to a file on disk
 //!
 //! ```rust
@@ -42,18 +41,22 @@
 //! use influxive_core::Metric;
 //! use influxive_writer::*;
 //!
-//! let path = std::path::PathBuf::from("my-metrics.line");
+//! let path = std::path::PathBuf::from("my-metrics.influx");
 //! let config = InfluxiveWriterConfig::with_line_protocol_file(path.clone());
+//! // The file backend ignores host/bucket/token
 //! let writer = InfluxiveWriter::with_token_auth(config, "", "", "");
 //!
 //! writer.write_metric(
-//! Metric::new(
-//! std::time::SystemTime::now(),
-//! "my.metric",
-//! )
-//! .with_field("value", 3.14)
-//! .with_tag("tag", "test-tag")
+//!     Metric::new(
+//!         std::time::SystemTime::now(),
+//!         "my.metric",
+//!     )
+//!     .with_field("value", 3.14)
+//!     .with_tag("tag", "test-tag")
 //! );
+//!
+//! // Now you can read and use the metrics file `my-metrics.influx`
+//!
 //! # let _ = std::fs::remove_file(path);
 //! # }
 //! ```
@@ -453,7 +456,7 @@ fn metric_to_query(metric: Metric) -> influxdb::WriteQuery {
         influxdb::Timestamp::Nanoseconds(
             timestamp
                 .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                .unwrap()
+                .expect("invalid system time")
                 .as_nanos(),
         ),
         name.into_string(),

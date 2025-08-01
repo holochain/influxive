@@ -96,7 +96,7 @@ fn create_file_writer(
     std::fs::create_dir_all(&temp_dir).unwrap();
     let test_path = temp_dir
         .path()
-        .join(std::path::PathBuf::from("test_metrics.line"));
+        .join(std::path::PathBuf::from("test_metrics.influx"));
     let mut config =
         InfluxiveWriterConfig::with_line_protocol_file(test_path.clone());
     config.batch_duration = std::time::Duration::from_millis(30);
@@ -132,6 +132,10 @@ async fn writer_file_one() {
     let reader = std::io::BufReader::new(file);
     let res = reader.lines().next().transpose().unwrap();
     assert!(res.is_some());
+    let line = res.unwrap();
+    let split = line.split(',').collect::<Vec<&str>>();
+    assert_eq!(split[0], "my.metric");
+    assert!(split[1].split(' ').collect::<Vec<&str>>()[1].contains(&"3.77"));
 }
 
 #[tokio::test(flavor = "multi_thread")]
