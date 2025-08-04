@@ -43,7 +43,7 @@ use influxive_core::Metric;
 use influxive_writer::*;
 
 let path = std::path::PathBuf::from("my-metrics.influx");
-let config = InfluxiveWriterConfig::with_line_protocol_file(path.clone());
+let config = InfluxiveWriterConfig::create_with_influx_file(path.clone());
 // The file backend ignores host/bucket/token
 let writer = InfluxiveWriter::with_token_auth(config, "", "", "");
 
