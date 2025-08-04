@@ -42,7 +42,7 @@
 //! use influxive_writer::*;
 //!
 //! let path = std::path::PathBuf::from("my-metrics.influx");
-//! let config = InfluxiveWriterConfig::with_line_protocol_file(path.clone());
+//! let config = InfluxiveWriterConfig::create_with_influx_file(path.clone());
 //! // The file backend ignores host/bucket/token
 //! let writer = InfluxiveWriter::with_token_auth(config, "", "", "");
 //!
@@ -281,7 +281,7 @@ impl Default for InfluxiveWriterConfig {
 
 impl InfluxiveWriterConfig {
     /// Construct a Config that uses a LineProtocolFileBackendFactory
-    pub fn with_line_protocol_file(path: std::path::PathBuf) -> Self {
+    pub fn create_with_influx_file(path: std::path::PathBuf) -> Self {
         Self {
             batch_duration: std::time::Duration::from_millis(100),
             batch_buffer_size: 4096,

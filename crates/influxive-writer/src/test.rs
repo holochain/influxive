@@ -98,7 +98,7 @@ fn create_file_writer(
         .path()
         .join(std::path::PathBuf::from("test_metrics.influx"));
     let mut config =
-        InfluxiveWriterConfig::with_line_protocol_file(test_path.clone());
+        InfluxiveWriterConfig::create_with_influx_file(test_path.clone());
     config.batch_duration = std::time::Duration::from_millis(30);
     let writer = InfluxiveWriter::with_token_auth(config, "", "", "");
     (test_path, writer)
