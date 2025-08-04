@@ -1,9 +1,13 @@
 #![deny(missing_docs)]
 #![deny(warnings)]
 #![deny(unsafe_code)]
-//! Rust utility for efficiently writing metrics to a running InfluxDB instance.
+//! Rust utility for efficiently writing metrics to InfluxDB.
+//! Metrics can be written directly to a running InfluxDB instance or
+//! written to a Line Protocol file on disk that can be pushed to InfluxDB using Telegraf.
 //!
 //! ## Example
+//!
+//! ### Writing to a running InfluxDB instance
 //!
 //! ```
 //! # #[tokio::main(flavor = "multi_thread")]
@@ -26,6 +30,34 @@
 //!     .with_field("value", 3.14)
 //!     .with_tag("tag", "test-tag")
 //! );
+//! # }
+//! ```
+//!
+//! ### Writing to a file on disk
+//!
+//! ```rust
+//! # #[tokio::main(flavor = "multi_thread")]
+//! # async fn main() {
+//! use influxive_core::Metric;
+//! use influxive_writer::*;
+//!
+//! let path = std::path::PathBuf::from("my-metrics.influx");
+//! let config = InfluxiveWriterConfig::create_with_influx_file(path.clone());
+//! // The file backend ignores host/bucket/token
+//! let writer = InfluxiveWriter::with_token_auth(config, "", "", "");
+//!
+//! writer.write_metric(
+//!     Metric::new(
+//!         std::time::SystemTime::now(),
+//!         "my.metric",
+//!     )
+//!     .with_field("value", 3.14)
+//!     .with_tag("tag", "test-tag")
+//! );
+//!
+//! // Now you can read and use the metrics file `my-metrics.influx`
+//!
+//! # let _ = std::fs::remove_file(path);
 //! # }
 //! ```
 
@@ -51,6 +83,8 @@ impl DataTypeExt for DataType {
 /// Backend types you probably don't need.
 pub mod types {
     use super::*;
+    use influxdb::Query;
+    use tokio::io::AsyncWriteExt;
 
     /// backend
     pub trait Backend: 'static + Send + Sync {
@@ -86,32 +120,7 @@ pub mod types {
 
     impl Backend for DefaultBackend {
         fn buffer_metric(&mut self, metric: Metric) {
-            let Metric {
-                timestamp,
-                name,
-                fields,
-                tags,
-            } = metric;
-
-            let mut query = influxdb::WriteQuery::new(
-                influxdb::Timestamp::Nanoseconds(
-                    timestamp
-                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                        .unwrap()
-                        .as_nanos(),
-                ),
-                name.into_string(),
-            );
-
-            for (k, v) in fields {
-                query = query.add_field(k.into_string(), v.into_type());
-            }
-
-            for (k, v) in tags {
-                query = query.add_tag(k.into_string(), v.into_type());
-            }
-
-            self.buffer.push(query);
+            self.buffer.push(metric_to_query(metric));
         }
 
         fn buffer_count(&self) -> usize {
@@ -154,6 +163,88 @@ pub mod types {
             out
         }
     }
+
+    struct LineProtocolFileBackend {
+        buffer: Vec<influxdb::WriteQuery>,
+        writer: tokio::io::BufWriter<tokio::fs::File>,
+    }
+
+    impl Backend for LineProtocolFileBackend {
+        fn buffer_metric(&mut self, metric: Metric) {
+            self.buffer.push(metric_to_query(metric));
+        }
+
+        fn buffer_count(&self) -> usize {
+            self.buffer.len()
+        }
+
+        fn send(
+            &mut self,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = ()> + '_ + Send + Sync>,
+        > {
+            Box::pin(async move {
+                let buffer = std::mem::take(&mut self.buffer);
+                for query in buffer {
+                    match query.build_with_opts(true) {
+                        Err(err) => tracing::warn!(?err, "write metrics error"),
+                        Ok(v) => {
+                            let line = format!("{}\n", v.get());
+                            if let Err(err) =
+                                self.writer.write_all(line.as_bytes()).await
+                            {
+                                tracing::warn!(?err, "write metrics error");
+                            }
+                        }
+                    }
+                }
+                if let Err(err) = self.writer.flush().await {
+                    tracing::warn!(?err, "write metrics error");
+                }
+            })
+        }
+    }
+
+    /// Use InfluxDB Line Protocol
+    #[derive(Debug)]
+    pub struct LineProtocolFileBackendFactory {
+        file_path: std::path::PathBuf,
+    }
+
+    impl LineProtocolFileBackendFactory {
+        /// Creates a new instance with the provided file path.
+        pub fn new(file_path: std::path::PathBuf) -> Self {
+            Self { file_path }
+        }
+    }
+
+    impl BackendFactory for LineProtocolFileBackendFactory {
+        fn with_token_auth(
+            &self,
+            _host: String,
+            _bucket: String,
+            _token: String,
+        ) -> Box<dyn Backend + 'static + Send + Sync> {
+            let file = match std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&self.file_path)
+            {
+                Ok(file) => tokio::fs::File::from_std(file),
+                Err(e) => panic!(
+                    "Failed to create file at path: {:?}: {}",
+                    self.file_path, e
+                ),
+            };
+            let writer = tokio::io::BufWriter::new(file);
+            let out: Box<dyn Backend + 'static + Send + Sync> =
+                Box::new(LineProtocolFileBackend {
+                    buffer: Vec::new(),
+                    writer,
+                });
+            out
+        }
+    }
 }
 
 /// InfluxDB metric writer configuration.
@@ -166,7 +257,7 @@ pub struct InfluxiveWriterConfig {
     pub batch_duration: std::time::Duration,
 
     /// The size of the metric write batch buffer. If a metric to be
-    /// writen would go beyond this buffer, the batch will be sent early.
+    /// written goes beyond this buffer, the batch will be sent early.
     /// If the buffer is again full before the previous batch finishes
     /// sending, the metric will be ignored and a trace will be written
     /// at "debug" level.
@@ -189,6 +280,15 @@ impl Default for InfluxiveWriterConfig {
 }
 
 impl InfluxiveWriterConfig {
+    /// Construct a Config that uses a LineProtocolFileBackendFactory
+    pub fn create_with_influx_file(path: std::path::PathBuf) -> Self {
+        Self {
+            batch_duration: std::time::Duration::from_millis(100),
+            batch_buffer_size: 4096,
+            backend: Arc::new(types::LineProtocolFileBackendFactory::new(path)),
+        }
+    }
+
     /// Apply [InfluxiveWriterConfig::batch_duration].
     pub fn with_batch_duration(
         mut self,
@@ -341,6 +441,36 @@ impl influxive_core::MetricWriter for InfluxiveWriter {
     fn write_metric(&self, metric: Metric) {
         InfluxiveWriter::write_metric(self, metric);
     }
+}
+
+/// Converts a Metric to a WriteQuery
+fn metric_to_query(metric: Metric) -> influxdb::WriteQuery {
+    let Metric {
+        timestamp,
+        name,
+        fields,
+        tags,
+    } = metric;
+
+    let mut query = influxdb::WriteQuery::new(
+        influxdb::Timestamp::Nanoseconds(
+            timestamp
+                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                .expect("invalid system time")
+                .as_nanos(),
+        ),
+        name.into_string(),
+    );
+
+    for (k, v) in fields {
+        query = query.add_field(k.into_string(), v.into_type());
+    }
+
+    for (k, v) in tags {
+        query = query.add_tag(k.into_string(), v.into_type());
+    }
+
+    query
 }
 
 #[cfg(test)]

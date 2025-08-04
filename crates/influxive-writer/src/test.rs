@@ -89,6 +89,175 @@ impl BackendFactory for TestFactory {
     }
 }
 
+/// Setup InfluxiveWriter to use LineProtocolFileBackendFactory
+fn create_file_writer(
+    temp_dir: &tempfile::TempDir,
+) -> (std::path::PathBuf, InfluxiveWriter) {
+    std::fs::create_dir_all(&temp_dir).unwrap();
+    let test_path = temp_dir
+        .path()
+        .join(std::path::PathBuf::from("test_metrics.influx"));
+    let mut config =
+        InfluxiveWriterConfig::create_with_influx_file(test_path.clone());
+    config.batch_duration = std::time::Duration::from_millis(30);
+    let writer = InfluxiveWriter::with_token_auth(config, "", "", "");
+    (test_path, writer)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn writer_file_one() {
+    use std::io::BufRead;
+
+    let temp_dir = tempfile::TempDir::new().unwrap();
+    let (test_path, writer) = create_file_writer(&temp_dir);
+    // File should start empty
+    let file = std::fs::File::open(&test_path).unwrap();
+    let reader = std::io::BufReader::new(file);
+    let res = reader.lines().next().transpose().unwrap();
+    assert!(res.is_none());
+    // Write one metric
+    writer.write_metric(
+        Metric::new(std::time::SystemTime::now(), "my.metric")
+            .with_field("val", 3.77)
+            .with_tag("tag", "test-tag"),
+    );
+    // File should still be empty since writer.send() not processed yet
+    let file = std::fs::File::open(&test_path).unwrap();
+    let reader = std::io::BufReader::new(file);
+    let res = reader.lines().next().transpose().unwrap();
+    assert!(res.is_none());
+    // Wait for the batch process to trigger
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    let file = std::fs::File::open(&test_path).unwrap();
+    let reader = std::io::BufReader::new(file);
+    let res = reader.lines().next().transpose().unwrap();
+    assert!(res.is_some());
+    let line = res.unwrap();
+    let split = line.split(',').collect::<Vec<&str>>();
+    assert_eq!(split[0], "my.metric");
+    assert!(split[1].split(' ').collect::<Vec<&str>>()[1].contains(&"3.77"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn writer_file_many() {
+    use std::io::BufRead;
+
+    let temp_dir = tempfile::TempDir::new().unwrap();
+    let (test_path, writer) = create_file_writer(&temp_dir);
+
+    // File should start empty
+    let file = std::fs::File::open(&test_path).unwrap();
+    let reader = std::io::BufReader::new(file);
+    let res = reader.lines().next().transpose().unwrap();
+    assert!(res.is_none());
+
+    // Write one metric
+    writer.write_metric(
+        Metric::new(std::time::SystemTime::now(), "my-metric")
+            .with_field("f1", 1.77)
+            .with_field("f2", 2.77)
+            .with_field("f3", 3.77)
+            .with_tag("tag", "test-tag"),
+    );
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+    // Write many metrics
+    for n in 0..10 {
+        writer.write_metric(
+            Metric::new(std::time::SystemTime::now(), "my-second-metric")
+                .with_field("val", n)
+                .with_tag("tag1", "test-tag1")
+                .with_tag("tag2", "test-tag2"),
+        );
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    let file = std::fs::File::open(&test_path).unwrap();
+    let reader = std::io::BufReader::new(file);
+    let count = reader.lines().count();
+    assert_eq!(count, 11);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn writer_file_all_data_types() {
+    use influxive_core::{DataType, Metric, StringType};
+    use std::io::BufRead;
+
+    let temp_dir = tempfile::TempDir::new().unwrap();
+    let (test_path, writer) = create_file_writer(&temp_dir);
+
+    // Write metrics with different data types
+    let test_cases = vec![
+        ("bool_field", DataType::Bool(true)),
+        ("float_field", DataType::F64(42.5)),
+        ("int_field", DataType::I64(-42)),
+        ("uint_field", DataType::U64(42)),
+        (
+            "string_field",
+            DataType::String(StringType::from("test value")),
+        ),
+        (
+            "quote_field",
+            DataType::String(StringType::from("a \"test\" value")),
+        ),
+    ];
+
+    for (field_name, value) in test_cases {
+        writer.write_metric(
+            Metric::new(std::time::SystemTime::UNIX_EPOCH, "test_metric")
+                .with_field(field_name, value),
+        );
+    }
+
+    // Wait for the batch to be written
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+    // Read and verify the output
+    let file = std::fs::File::open(&test_path).unwrap();
+    let reader = std::io::BufReader::new(file);
+    let lines: Vec<String> = reader.lines().collect::<Result<_, _>>().unwrap();
+
+    assert_eq!(lines.len(), 6, "Expected 6 lines of metrics");
+
+    // Verify each line contains the correct field value format
+    assert!(
+        lines.iter().any(|line| line.contains("bool_field=true")),
+        "Boolean field not found"
+    );
+    assert!(
+        lines.iter().any(|line| line.contains("float_field=42.5")),
+        "Float field not found"
+    );
+    assert!(
+        lines.iter().any(|line| line.contains("int_field=-42i")),
+        "Integer field not found"
+    );
+    assert!(
+        lines.iter().any(|line| line.contains("uint_field=42u")),
+        "Unsigned integer field not found"
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.contains(r#"string_field="test value""#)),
+        "String field not found"
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.contains(r#"quote_field="a \"test\" value"#)),
+        "String field not found"
+    );
+
+    // Verify metric name and timestamp format for one line
+    let first_line = &lines[0];
+    assert!(
+        first_line.starts_with("test_metric "),
+        "Incorrect metric name format"
+    );
+    assert!(first_line.ends_with(" 0"), "Incorrect timestamp format"); // UNIX_EPOCH timestamp should be 0
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn writer_stress() {
     let test_start = std::time::Instant::now();
