@@ -316,7 +316,8 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn download_in_current_dir() {
-        let tmp = tempfile::tempdir_in(std::env::current_dir().unwrap()).unwrap();
+        let tmp =
+            tempfile::tempdir_in(std::env::current_dir().unwrap()).unwrap();
         println!("{:?}", TEST_TAR.download(tmp.path()).await.unwrap());
         // okay if windows fails
         let _ = tmp.close();
