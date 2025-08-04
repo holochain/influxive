@@ -1,10 +1,10 @@
+use crate::common::telegraf_influx_file_conf::TelegrafLineProtocolConfigBuilder;
+use crate::common::telegraf_svc::TelegrafSvc;
 use influxive_child_svc::{InfluxiveChildSvc, InfluxiveChildSvcConfig};
 use influxive_core::*;
 use influxive_writer::*;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use crate::common::telegraf_influx_file_conf::TelegrafLineProtocolConfigBuilder;
-use crate::common::telegraf_svc::TelegrafSvc;
 
 mod common;
 
@@ -51,12 +51,17 @@ async fn write_to_file(test_path: &PathBuf) {
             .with_tag("tag2", "test-tag2"),
     );
 
-    // Write many metrics
-    let now = std::time::SystemTime::now().checked_sub(Duration::from_secs(10)).unwrap();
+    // Write many metrics with different timestamps
+    let now = std::time::SystemTime::now()
+        .checked_sub(Duration::from_secs(10))
+        .unwrap();
     for n in 0..10 {
         writer.write_metric(
-            Metric::new(now.checked_add(Duration::from_secs(n)).unwrap(), "my-second-metric")
-                .with_field("val", n),
+            Metric::new(
+                now.checked_add(Duration::from_secs(n)).unwrap(),
+                "my-second-metric",
+            )
+            .with_field("val", n),
         );
     }
 
@@ -72,7 +77,6 @@ async fn write_to_file(test_path: &PathBuf) {
 #[tokio::test(flavor = "multi_thread")]
 async fn write_to_file_then_read() {
     let test_dir = tempfile::tempdir().unwrap().path().to_owned();
-    //let test_dir = std::env::current_dir().unwrap().join("output");
     std::fs::create_dir_all(&test_dir).unwrap();
     let metrics_path = test_dir.join("test_metrics.influx");
     let telegraf_config_path = test_dir.join("test_telegraf.conf");
@@ -84,7 +88,6 @@ async fn write_to_file_then_read() {
     let influx_process = spawn_influx(&test_dir).await;
 
     // Generate Telegraf config
-
     let config = TelegrafLineProtocolConfigBuilder::new()
         .influxdb_url(influx_process.get_host())
         .token(influx_process.get_token())
@@ -102,12 +105,11 @@ async fn write_to_file_then_read() {
     );
     telegraf_process.start().await.unwrap();
 
-
-    // Wait for telegraf to process by querying every second until a timeout
+    // Wait for telegraf to process by querying influxDB every second until we get the expected
+    // result or a timeout
     let start = std::time::Instant::now();
     let mut line_count = 0;
     while start.elapsed() < std::time::Duration::from_secs(20) {
-        // Query InfluxDB for data
         let result = influx_process
             .query(
                 r#"from(bucket: "influxive")
@@ -118,7 +120,10 @@ async fn write_to_file_then_read() {
             .await
             .unwrap();
 
-        line_count = result.split('\n').filter(|l| l.contains("my-second-metric")).count();
+        line_count = result
+            .split('\n')
+            .filter(|l| l.contains("my-second-metric"))
+            .count();
         if line_count == 10 {
             break;
         }

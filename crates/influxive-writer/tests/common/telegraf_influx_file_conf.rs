@@ -30,6 +30,7 @@ impl TelegrafLineProtocolConfig {
         Ok(())
     }
 
+    /// Builds Telegraf config file content based on config
     fn build_content(&self) -> String {
         format!(
             r#"# Generated Telegraf Configuration for Line Protocol Metrics
@@ -102,8 +103,7 @@ impl TelegrafLineProtocolConfigBuilder {
                 token: String::new(),
                 organization: String::new(),
                 bucket: String::new(),
-                metrics_file_path: "/tmp/app_metrics.log"
-                    .to_string(),
+                metrics_file_path: "/tmp/app_metrics.log".to_string(),
                 config_output_path: "/tmp/telegraf.conf".to_string(),
             },
         }

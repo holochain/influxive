@@ -123,7 +123,7 @@ impl TelegrafSvc {
                     archive_path
                 );
 
-                // Copy to our bin directory
+                // Locate binary in the extracted archive and copy to the provided bin directory
                 let filename = format!("telegraf-{}", TELEGRAF_VERSION);
                 let extracted_dir =
                     PathBuf::from(&self.binary_dir).join(filename);
