@@ -1,14 +1,14 @@
 use std::fs::File;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub struct TelegrafLineProtocolConfig {
     pub influxdb_url: String,
     pub token: String,
     pub organization: String,
     pub bucket: String,
-    pub metrics_file_path: String,
-    pub config_output_path: String,
+    pub metrics_file_path: PathBuf,
+    pub config_output_path: PathBuf,
 }
 
 impl TelegrafLineProtocolConfig {
@@ -25,7 +25,7 @@ impl TelegrafLineProtocolConfig {
 
         println!(
             "Telegraf Line Protocol configuration written to: {}",
-            self.config_output_path
+            self.config_output_path.as_path().display()
         );
         Ok(())
     }
@@ -84,7 +84,7 @@ impl TelegrafLineProtocolConfig {
             self.token,
             self.organization,
             self.bucket,
-            self.metrics_file_path,
+            self.metrics_file_path.as_path().display(),
         )
     }
 }
@@ -103,8 +103,8 @@ impl TelegrafLineProtocolConfigBuilder {
                 token: String::new(),
                 organization: String::new(),
                 bucket: String::new(),
-                metrics_file_path: "/tmp/app_metrics.log".to_string(),
-                config_output_path: "/tmp/telegraf.conf".to_string(),
+                metrics_file_path: PathBuf::from("app_metrics.log"),
+                config_output_path: PathBuf::from("telegraf.conf"),
             },
         }
     }
@@ -130,12 +130,12 @@ impl TelegrafLineProtocolConfigBuilder {
     }
 
     pub fn metrics_file_path(mut self, path: &str) -> Self {
-        self.config.metrics_file_path = path.to_string();
+        self.config.metrics_file_path = PathBuf::from(path);
         self
     }
 
     pub fn config_output_path(mut self, path: &str) -> Self {
-        self.config.config_output_path = path.to_string();
+        self.config.config_output_path = PathBuf::from(path);
         self
     }
 
