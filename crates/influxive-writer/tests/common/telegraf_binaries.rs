@@ -43,7 +43,7 @@ pub const TELEGRAF_SPEC: DownloadSpec = DownloadSpec {
         inner_path: "telegraf-1.28.5/telegraf",
     },
     archive_hash: Hash::Sha2_256(&hex!(
-            "2c7b50d1f1befafdd31c79e788f744806a4e6ea9ddada85005d3f9f46a3082ae"
+            "39eb8b73183b29b81cc6d2a23e1bb9afa1c5efa061be4074cccc2fa9c87d4b79"
         )),
     file_hash: Hash::Sha2_256(&hex!(
             "d64176c8a102043e578dbba69181f75cfd975b5d5118d41ddfc621523ab8f7c9"
