@@ -110,7 +110,7 @@ async fn write_to_file_then_read() {
     // result or a timeout
     let start = std::time::Instant::now();
     let mut line_count = 0;
-    while start.elapsed() < std::time::Duration::from_secs(60) {
+    while start.elapsed() < std::time::Duration::from_secs(20) {
         let result = influx_process
             .query(
                 r#"from(bucket: "influxive")
