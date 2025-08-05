@@ -1,20 +1,20 @@
 use crate::common::telegraf_binaries::TELEGRAF_SPEC;
-use std::path::Path;
+use std::path::PathBuf;
 use std::process::Stdio;
 
 /// Spawns and handles a Telegraf child service
 pub struct TelegrafSvc {
     process: Option<tokio::process::Child>,
-    config_path: String,
-    binary_dir: String,
+    config_path: PathBuf,
+    binary_dir: PathBuf,
 }
 
 impl TelegrafSvc {
     pub fn new(config_path: &str, fallback_binary_dir: &str) -> Self {
         Self {
             process: None,
-            config_path: config_path.to_string(),
-            binary_dir: fallback_binary_dir.to_string(),
+            config_path: PathBuf::from(config_path),
+            binary_dir: PathBuf::from(fallback_binary_dir),
         }
     }
 
@@ -23,7 +23,7 @@ impl TelegrafSvc {
     ) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
         println!("Downloading from: {}", TELEGRAF_SPEC.url);
         let filepath =
-            TELEGRAF_SPEC.download(Path::new(&self.binary_dir)).await?;
+            TELEGRAF_SPEC.download(self.binary_dir.as_path()).await?;
         println!(
             "Telegraf binary downloaded and extracted successfully to {}",
             filepath.display()
@@ -36,8 +36,9 @@ impl TelegrafSvc {
         let filepath = self.download_telegraf().await?;
 
         println!(
-            "Starting Telegraf with config: {} | {:?}",
-            self.config_path, filepath
+            "Starting Telegraf with config: {} | {}",
+            self.config_path.to_string_lossy(),
+            filepath.to_string_lossy(),
         );
 
         let child = tokio::process::Command::new(&filepath)

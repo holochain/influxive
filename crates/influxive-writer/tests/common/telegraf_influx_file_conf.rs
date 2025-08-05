@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub struct TelegrafLineProtocolConfig {
     pub influxdb_url: String,
@@ -16,7 +16,7 @@ impl TelegrafLineProtocolConfig {
         let config_content = self.build_content();
 
         // Create parent directories if they don't exist
-        if let Some(parent) = Path::new(&self.config_output_path).parent() {
+        if let Some(parent) = self.config_output_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
 
@@ -106,7 +106,7 @@ impl TelegrafLineProtocolConfigBuilder {
                 token: String::new(),
                 organization: String::new(),
                 bucket: String::new(),
-                metrics_file_path: PathBuf::from("app_metrics.log"),
+                metrics_file_path: PathBuf::from("metrics.influx"),
                 config_output_path: PathBuf::from("telegraf.conf"),
             },
         }
