@@ -25,7 +25,10 @@ impl TelegrafLineProtocolConfig {
 
         println!(
             "Telegraf Line Protocol configuration written to: {}",
-            self.config_output_path.as_path().display()
+            self.config_output_path
+                .as_path()
+                .to_string_lossy()
+                .replace('\\', "\\\\"), // escape backslashes for Windows
         );
         Ok(())
     }
