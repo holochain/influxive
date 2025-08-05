@@ -38,7 +38,7 @@ pub const TELEGRAF_SPEC: DownloadSpec = DownloadSpec {
 
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
 pub const TELEGRAF_SPEC: DownloadSpec = DownloadSpec {
-    url: "https://dl.influxdata.com/telegraf/releases/telegraf-1.28.5-windows-amd64.zip",
+    url: "https://dl.influxdata.com/telegraf/releases/telegraf-1.28.5_windows_amd64.zip",
     archive: Archive::Zip {
         inner_path: "telegraf-1.28.5/telegraf",
     },
