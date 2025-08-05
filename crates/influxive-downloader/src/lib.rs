@@ -118,8 +118,8 @@ impl DownloadSpec {
         // Fallback to copy() if rename() fails because of an `Invalid cross-device link` error
         if tokio::fs::rename(&dl_path, &fallback_path).await.is_err() {
             tokio::fs::copy(&dl_path, &fallback_path).await?;
+            let _ = tokio::fs::remove_file(&dl_path).await;
         }
-        let _ = tokio::fs::remove_file(&dl_path).await;
 
         Ok(fallback_path)
     }
