@@ -135,11 +135,13 @@ impl DownloadSpec {
             .bytes_stream();
         let mut hasher = self.archive_hash.get_hasher();
 
+        let mut bytes_count = 0;
         while let Some(bytes) = data.next().await {
             let bytes = bytes.map_err(err_other)?;
 
             hasher.update(&bytes);
 
+            bytes_count += bytes.len();
             let mut reader: &[u8] = &bytes;
             tokio::io::copy(&mut reader, &mut file).await?;
         }
@@ -147,9 +149,10 @@ impl DownloadSpec {
         let hash = hasher.finalize();
         if &*hash != self.archive_hash.as_slice() {
             return Err(err_other(format!(
-                "download archive hash mismatch, expected {}, got {}",
+                "download archive hash mismatch, expected {}, got {} (for {} bytes)",
                 hex::encode(self.archive_hash.as_slice()),
                 hex::encode(hash),
+                bytes_count,
             )));
         }
 
