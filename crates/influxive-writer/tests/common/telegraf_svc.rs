@@ -1,7 +1,39 @@
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use influxive_downloader::{Archive, DownloadSpec, Hash};
+use hex_literal::hex;
 
-static TELEGRAF_VERSION: &str = "1.28.5";
+
+const TELEGRAF_TAR: DownloadSpec = DownloadSpec {
+    url: "https://dl.influxdata.com/telegraf/releases/telegraf-1.28.5_linux_amd64.tar.gz",
+    archive: Archive::TarGz {
+        inner_path: "telegraf-1.28.5/usr/bin/telegraf",
+    },
+    archive_hash: Hash::Sha2_256(&hex!(
+            "ae2f925e8e999299d4f4e6db7c20395813457edfb4128652d685cecb501ef669"
+        )),
+    file_hash: Hash::Sha2_256(&hex!(
+            "8e9e4cf36fd7ebda5270c53453153f4d551ea291574fdaed08e376eaf6d3700b"
+        )),
+    file_prefix: "telegraf",
+    file_extension: "",
+};
+
+const TELEGRAF_ZIP: DownloadSpec = DownloadSpec {
+    url: "https://dl.influxdata.com/telegraf/releases/telegraf-1.28.5-windows-amd64.zip",
+    archive: Archive::Zip {
+        inner_path: "telegraf",
+    },
+    archive_hash: Hash::Sha2_256(&hex!(
+            "a9265771a2693269e50eeaf2ac82ac01d44305c6c6a5b425cf63e8289b6e89c4"
+        )),
+    file_hash: Hash::Sha2_256(&hex!(
+            "829bb2657149436a88a959ea223c9f85bb25431fcf2891056522d9ec061f093e"
+        )),
+    file_prefix: "telegraf",
+    file_extension: ".exe",
+};
+
 
 /// Spawns and handles a Telegraf child service
 pub struct TelegrafSvc {
@@ -42,125 +74,18 @@ impl TelegrafSvc {
         std::fs::create_dir_all(&self.binary_dir)?;
 
         // Detect OS and architecture
-        let os = std::env::consts::OS;
-        let arch = std::env::consts::ARCH;
-
-        let (platform, extension) = match os {
-            "linux" => ("linux", "tar.gz"),
-            "macos" => ("darwin", "tar.gz"),
-            "windows" => ("windows", "zip"),
-            _ => return Err(format!("Unsupported OS: {}", os).into()),
+        let spec = match std::env::consts::OS {
+            "linux" | "macos" => TELEGRAF_TAR,
+            "windows" => TELEGRAF_ZIP,
+            _ => return Err(format!("Unsupported OS: {}", std::env::consts::OS).into()),
         };
 
-        let arch_name = match arch {
-            "x86_64" => "amd64",
-            "aarch64" => "arm64",
-            _ => {
-                return Err(format!("Unsupported architecture: {}", arch).into())
-            }
-        };
+        println!("Downloading from: {}", spec.url);
 
-        let filename = format!(
-            "telegraf-{}_{}_{}.{}",
-            TELEGRAF_VERSION, platform, arch_name, extension
-        );
-        let url =
-            format!("https://dl.influxdata.com/telegraf/releases/{}", filename);
+        let filepath = spec.download(Path::new(&self.binary_dir)).await?;
+        println!("Telegraf binary downloaded and extracted successfully to {}", filepath.display());
 
-        println!("Downloading from: {}", url);
-
-        // Download the archive
-        let client = reqwest::Client::new();
-        let response = client.get(&url).send().await?;
-
-        if !response.status().is_success() {
-            return Err(format!(
-                "Failed to download Telegraf: HTTP {}",
-                response.status()
-            )
-            .into());
-        }
-
-        let archive_bytes = response.bytes().await?;
-        let temp_file = format!("{}/{}", self.binary_dir, filename);
-        std::fs::write(&temp_file, &archive_bytes)?;
-        println!("Telegraf binary downloaded successfully to {}", temp_file);
-
-        // Extract the archive
-        self.extract_telegraf(&temp_file, extension).await?;
-
-        // Clean up temp file
-        std::fs::remove_file(&temp_file)?;
-
-        println!("Telegraf binary downloaded and extracted successfully");
-        Ok(())
-    }
-
-    async fn extract_telegraf(
-        &self,
-        archive_path: &str,
-        extension: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        match extension {
-            "tar.gz" => {
-                // Use tokio process to run tar command
-                let output = tokio::process::Command::new("tar")
-                    .args(&["-xzf", archive_path])
-                    .args(&["-C", self.binary_dir.as_str()])
-                    .output()
-                    .await?;
-
-                if !output.status.success() {
-                    return Err(format!(
-                        "Failed to extract {}: {} ",
-                        archive_path,
-                        String::from_utf8_lossy(&output.stderr)
-                    )
-                    .into());
-                }
-                println!(
-                    "Telegraf binary extracted successfully: {}",
-                    archive_path
-                );
-
-                // Locate binary in the extracted archive and copy to the provided bin directory
-                let filename = format!("telegraf-{}", TELEGRAF_VERSION);
-                let extracted_dir =
-                    PathBuf::from(&self.binary_dir).join(filename);
-                let extracted_bin_path = Path::new(&extracted_dir)
-                    .join("usr")
-                    .join("bin")
-                    .join("telegraf");
-                tokio::fs::copy(&extracted_bin_path, &self.binary_path())
-                    .await?;
-
-                // Make it executable
-                tokio::process::Command::new("chmod")
-                    .args(&[
-                        "+x",
-                        self.binary_path()
-                            .as_path()
-                            .as_os_str()
-                            .to_str()
-                            .unwrap(),
-                    ])
-                    .output()
-                    .await?;
-
-                println!("Telegraf binary made executable {}", self.binary_dir);
-            }
-            "zip" => {
-                // For Windows, we'd need to handle zip extraction
-                return Err("ZIP extraction not implemented for now".into());
-            }
-            _ => {
-                return Err(format!(
-                    "Unsupported archive format: {}",
-                    extension
-                )
-                .into())
-            }
-        }
+        tokio::fs::copy(&filepath, &self.binary_path()).await?;
 
         Ok(())
     }
@@ -170,9 +95,9 @@ impl TelegrafSvc {
         self.ensure_binary().await?;
 
         println!(
-            "Starting Telegraf with config: {} | {}",
+            "Starting Telegraf with config: {} | {:?}",
             self.config_path,
-            self.binary_path().as_os_str().to_str().unwrap()
+            self.binary_path()
         );
 
         let child = tokio::process::Command::new(&self.binary_path())
