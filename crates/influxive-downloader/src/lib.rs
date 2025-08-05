@@ -115,9 +115,11 @@ impl DownloadSpec {
             }
         }
 
+        // Fallback to copy() if rename() fails because of an `Invalid cross-device link` error
         if tokio::fs::rename(&dl_path, &fallback_path).await.is_err() {
             tokio::fs::copy(&dl_path, &fallback_path).await?;
         }
+        let _ = tokio::fs::remove_file(&dl_path).await;
 
         Ok(fallback_path)
     }
@@ -319,7 +321,6 @@ mod tests {
         let tmp =
             tempfile::tempdir_in(std::env::current_dir().unwrap()).unwrap();
         println!("{:?}", TEST_TAR.download(tmp.path()).await.unwrap());
-        // okay if windows fails
-        let _ = tmp.close();
+        tmp.close().unwrap();
     }
 }
