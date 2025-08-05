@@ -1,8 +1,7 @@
+use hex_literal::hex;
+use influxive_downloader::{Archive, DownloadSpec, Hash};
 use std::path::Path;
 use std::process::Stdio;
-use influxive_downloader::{Archive, DownloadSpec, Hash};
-use hex_literal::hex;
-
 
 const TELEGRAF_TAR: DownloadSpec = DownloadSpec {
     url: "https://dl.influxdata.com/telegraf/releases/telegraf-1.28.5_linux_amd64.tar.gz",
@@ -34,7 +33,6 @@ const TELEGRAF_ZIP: DownloadSpec = DownloadSpec {
     file_extension: ".exe",
 };
 
-
 /// Spawns and handles a Telegraf child service
 pub struct TelegrafSvc {
     process: Option<tokio::process::Child>,
@@ -65,7 +63,10 @@ impl TelegrafSvc {
     ) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
         println!("Downloading from: {}", self.spec.url);
         let filepath = self.spec.download(Path::new(&self.binary_dir)).await?;
-        println!("Telegraf binary downloaded and extracted successfully to {}", filepath.display());
+        println!(
+            "Telegraf binary downloaded and extracted successfully to {}",
+            filepath.display()
+        );
         Ok(filepath)
     }
 
@@ -75,8 +76,7 @@ impl TelegrafSvc {
 
         println!(
             "Starting Telegraf with config: {} | {:?}",
-            self.config_path,
-            filepath
+            self.config_path, filepath
         );
 
         let child = tokio::process::Command::new(&filepath)
