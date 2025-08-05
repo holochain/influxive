@@ -23,8 +23,8 @@ pub const TELEGRAF_SPEC: DownloadSpec = DownloadSpec {
 ))]
 pub const TELEGRAF_SPEC: DownloadSpec = DownloadSpec {
     url: "https://dl.influxdata.com/telegraf/releases/telegraf-1.28.5_darwin_amd64.tar.gz",
-    archive: Archive::Zip {
-        inner_path: "telegraf-1.28.5/telegraf",
+    archive: Archive::TarGz {
+        inner_path: "telegraf-1.28.5/usr/bin/telegraf",
     },
     archive_hash: Hash::Sha2_256(&hex!(
             "0848074b210d4a40e4b22f6a8b3c48450428ad02f9f796c1e2d55dee8d441c5b"
@@ -33,7 +33,7 @@ pub const TELEGRAF_SPEC: DownloadSpec = DownloadSpec {
             "e6e2c820431aa9a89ee1a8ada2408c0a058e138bb5126ae27bcadb9624e5f2dc"
         )),
     file_prefix: "telegraf",
-    file_extension: ".exe",
+    file_extension: "",
 };
 
 #[cfg(all(target_os = "windows", target_arch = "x86_64"))]

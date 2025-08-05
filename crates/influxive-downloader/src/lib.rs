@@ -129,17 +129,18 @@ impl DownloadSpec {
         let file = tempfile::tempfile()?;
         let mut file = tokio::fs::File::from_std(file);
 
-        let response = reqwest::get(self.url)
-            .await
-            .map_err(err_other)?;
+        let response = reqwest::get(self.url).await.map_err(err_other)?;
         if !response.status().is_success() {
-            return Err(err_other(format!("Failed to download file: HTTP {}", response.status())));
+            return Err(err_other(format!(
+                "Failed to download file: HTTP {}",
+                response.status()
+            )));
         }
         let content_length = response.content_length();
         if let Some(size) = content_length {
             println!("Expected file size: {} bytes", size);
         }
-        
+
         let mut data_stream = response.bytes_stream();
         let mut hasher = self.archive_hash.get_hasher();
 
@@ -158,12 +159,10 @@ impl DownloadSpec {
             if bytes_count != expected_size {
                 return Err(err_other(format!(
                     "Downloaded size mismatch: expected {}, got {}",
-                    expected_size,
-                    bytes_count
+                    expected_size, bytes_count
                 )));
             }
         }
-
 
         let hash = hasher.finalize();
         if &*hash != self.archive_hash.as_slice() {
