@@ -136,41 +136,24 @@ impl DownloadSpec {
                 response.status()
             )));
         }
-        let content_length = response.content_length();
-        if let Some(size) = content_length {
-            println!("Expected file size: {} bytes", size);
-        }
 
         let mut data_stream = response.bytes_stream();
         let mut hasher = self.archive_hash.get_hasher();
 
-        let mut bytes_count: u64 = 0;
         while let Some(bytes) = data_stream.next().await {
             let bytes = bytes.map_err(err_other)?;
             hasher.update(&bytes);
 
-            bytes_count += bytes.len() as u64;
             let mut reader: &[u8] = &bytes;
             tokio::io::copy(&mut reader, &mut file).await?;
-        }
-
-        // Verify download completeness
-        if let Some(expected_size) = content_length {
-            if bytes_count != expected_size {
-                return Err(err_other(format!(
-                    "Downloaded size mismatch: expected {}, got {}",
-                    expected_size, bytes_count
-                )));
-            }
         }
 
         let hash = hasher.finalize();
         if &*hash != self.archive_hash.as_slice() {
             return Err(err_other(format!(
-                "download archive hash mismatch, expected {}, got {} (for {} bytes)",
+                "download archive hash mismatch, expected {}, got {}",
                 hex::encode(self.archive_hash.as_slice()),
                 hex::encode(hash),
-                bytes_count,
             )));
         }
 

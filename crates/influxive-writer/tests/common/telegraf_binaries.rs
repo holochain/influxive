@@ -40,7 +40,7 @@ pub const TELEGRAF_SPEC: DownloadSpec = DownloadSpec {
 pub const TELEGRAF_SPEC: DownloadSpec = DownloadSpec {
     url: "https://dl.influxdata.com/telegraf/releases/telegraf-1.28.5_windows_amd64.zip",
     archive: Archive::Zip {
-        inner_path: "telegraf-1.28.5/telegraf",
+        inner_path: "telegraf-1.28.5/telegraf.exe",
     },
     archive_hash: Hash::Sha2_256(&hex!(
             "e025bdd57bad5174f2490da47983eff4aa9f0a884343c0629d6ef774dcf2a892"
