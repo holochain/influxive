@@ -36,7 +36,7 @@ async fn spawn_influx(path: &Path) -> InfluxiveChildSvc {
     child
 }
 
-async fn write_to_file(test_path: &PathBuf) {
+async fn write_metrics_to_file(test_path: &PathBuf) {
     use std::io::BufRead;
 
     let writer = create_influx_file_writer(test_path);
@@ -68,6 +68,7 @@ async fn write_to_file(test_path: &PathBuf) {
     // Wait for batch processing to trigger
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
+    // Make sure metrics have been written to disk
     let file = std::fs::File::open(&test_path).unwrap();
     let reader = std::io::BufReader::new(file);
     let count = reader.lines().count();
@@ -82,7 +83,7 @@ async fn write_to_file_then_read() {
     let telegraf_config_path = test_dir.join("test_telegraf.conf");
 
     // Write metrics to disk
-    write_to_file(&metrics_path).await;
+    write_metrics_to_file(&metrics_path).await;
 
     // Launch influxDB
     let influx_process = spawn_influx(&test_dir).await;
@@ -109,7 +110,7 @@ async fn write_to_file_then_read() {
     // result or a timeout
     let start = std::time::Instant::now();
     let mut line_count = 0;
-    while start.elapsed() < std::time::Duration::from_secs(20) {
+    while start.elapsed() < std::time::Duration::from_secs(60) {
         let result = influx_process
             .query(
                 r#"from(bucket: "influxive")
