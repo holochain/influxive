@@ -129,22 +129,41 @@ impl DownloadSpec {
         let file = tempfile::tempfile()?;
         let mut file = tokio::fs::File::from_std(file);
 
-        let mut data = reqwest::get(self.url)
+        let response = reqwest::get(self.url)
             .await
-            .map_err(err_other)?
-            .bytes_stream();
+            .map_err(err_other)?;
+        if !response.status().is_success() {
+            return Err(err_other(format!("Failed to download file: HTTP {}", response.status())));
+        }
+        let content_length = response.content_length();
+        if let Some(size) = content_length {
+            println!("Expected file size: {} bytes", size);
+        }
+        
+        let mut data_stream = response.bytes_stream();
         let mut hasher = self.archive_hash.get_hasher();
 
-        let mut bytes_count = 0;
-        while let Some(bytes) = data.next().await {
+        let mut bytes_count: u64 = 0;
+        while let Some(bytes) = data_stream.next().await {
             let bytes = bytes.map_err(err_other)?;
-
             hasher.update(&bytes);
 
-            bytes_count += bytes.len();
+            bytes_count += bytes.len() as u64;
             let mut reader: &[u8] = &bytes;
             tokio::io::copy(&mut reader, &mut file).await?;
         }
+
+        // Verify download completeness
+        if let Some(expected_size) = content_length {
+            if bytes_count != expected_size {
+                return Err(err_other(format!(
+                    "Downloaded size mismatch: expected {}, got {}",
+                    expected_size,
+                    bytes_count
+                )));
+            }
+        }
+
 
         let hash = hasher.finalize();
         if &*hash != self.archive_hash.as_slice() {
