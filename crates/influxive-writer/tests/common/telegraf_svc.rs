@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Stdio;
 use influxive_downloader::{Archive, DownloadSpec, Hash};
 use hex_literal::hex;
@@ -22,13 +22,13 @@ const TELEGRAF_TAR: DownloadSpec = DownloadSpec {
 const TELEGRAF_ZIP: DownloadSpec = DownloadSpec {
     url: "https://dl.influxdata.com/telegraf/releases/telegraf-1.28.5-windows-amd64.zip",
     archive: Archive::Zip {
-        inner_path: "telegraf",
+        inner_path: "telegraf-1.28.5/telegraf",
     },
     archive_hash: Hash::Sha2_256(&hex!(
-            "a9265771a2693269e50eeaf2ac82ac01d44305c6c6a5b425cf63e8289b6e89c4"
+            "924e103b33016a44247f97c7ee87bb807882d73d83181e31e251f6903b74fa1e"
         )),
     file_hash: Hash::Sha2_256(&hex!(
-            "829bb2657149436a88a959ea223c9f85bb25431fcf2891056522d9ec061f093e"
+            "d64176c8a102043e578dbba69181f75cfd975b5d5118d41ddfc621523ab8f7c9"
         )),
     file_prefix: "telegraf",
     file_extension: ".exe",
@@ -40,67 +40,46 @@ pub struct TelegrafSvc {
     process: Option<tokio::process::Child>,
     config_path: String,
     binary_dir: String,
+    spec: DownloadSpec,
 }
 
 impl TelegrafSvc {
-    fn binary_path(&self) -> PathBuf {
-        PathBuf::from(&self.binary_dir).join("telegraf")
-    }
+    pub fn new(config_path: &str, fallback_binary_dir: &str) -> Self {
+        // Detect OS
+        let spec = match std::env::consts::OS {
+            "linux" | "macos" => TELEGRAF_TAR,
+            "windows" => TELEGRAF_ZIP,
+            _ => panic!("Unsupported OS: {}", std::env::consts::OS),
+        };
 
-    pub fn new(config_path: &str, binary_path: &str) -> Self {
         Self {
             process: None,
             config_path: config_path.to_string(),
-            binary_dir: binary_path.to_string(),
+            binary_dir: fallback_binary_dir.to_string(),
+            spec,
         }
-    }
-
-    pub async fn ensure_binary(
-        &self,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        if self.binary_path().exists() {
-            println!("Telegraf binary already exists at {}", self.binary_dir);
-            return Ok(());
-        }
-
-        println!("Downloading Telegraf binary...");
-        self.download_telegraf().await?;
-        Ok(())
     }
 
     async fn download_telegraf(
         &self,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        std::fs::create_dir_all(&self.binary_dir)?;
-
-        // Detect OS and architecture
-        let spec = match std::env::consts::OS {
-            "linux" | "macos" => TELEGRAF_TAR,
-            "windows" => TELEGRAF_ZIP,
-            _ => return Err(format!("Unsupported OS: {}", std::env::consts::OS).into()),
-        };
-
-        println!("Downloading from: {}", spec.url);
-
-        let filepath = spec.download(Path::new(&self.binary_dir)).await?;
+    ) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+        println!("Downloading from: {}", self.spec.url);
+        let filepath = self.spec.download(Path::new(&self.binary_dir)).await?;
         println!("Telegraf binary downloaded and extracted successfully to {}", filepath.display());
-
-        tokio::fs::copy(&filepath, &self.binary_path()).await?;
-
-        Ok(())
+        Ok(filepath)
     }
 
     pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         // Ensure binary is available
-        self.ensure_binary().await?;
+        let filepath = self.download_telegraf().await?;
 
         println!(
             "Starting Telegraf with config: {} | {:?}",
             self.config_path,
-            self.binary_path()
+            filepath
         );
 
-        let child = tokio::process::Command::new(&self.binary_path())
+        let child = tokio::process::Command::new(&filepath)
             .arg("--config")
             .arg(&self.config_path)
             .stdout(Stdio::piped())
