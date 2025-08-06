@@ -1,4 +1,4 @@
-use crate::common::telegraf_influx_file_conf::TelegrafLineProtocolConfigBuilder;
+use crate::common::telegraf_influx_file_conf::TelegrafLineProtocolConfig;
 use crate::common::telegraf_svc::TelegrafSvc;
 use influxive_child_svc::{InfluxiveChildSvc, InfluxiveChildSvcConfig};
 use influxive_core::*;
@@ -8,7 +8,7 @@ use std::time::Duration;
 
 mod common;
 
-/// Setup InfluxiveWriter to use LineProtocolFileBackendFactory
+/// Setup [`InfluxiveWriter`] to use [`LineProtocolFileBackendFactory`]
 pub fn create_influx_file_writer(test_path: &PathBuf) -> InfluxiveWriter {
     let _ = std::fs::remove_file(&test_path);
     let mut config =
@@ -66,13 +66,20 @@ async fn write_metrics_to_file(test_path: &PathBuf) {
     }
 
     // Wait for batch processing to trigger
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-
-    // Make sure metrics have been written to disk
-    let file = std::fs::File::open(&test_path).unwrap();
-    let reader = std::io::BufReader::new(file);
-    let count = reader.lines().count();
-    assert_eq!(count, 11);
+    tokio::time::timeout(std::time::Duration::from_millis(1000), async {
+        loop {
+            // Make sure metrics have been written to disk
+            let file = std::fs::File::open(&test_path).unwrap();
+            let reader = std::io::BufReader::new(file);
+            let count = reader.lines().count();
+            if count == 11 {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+    })
+    .await
+    .unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -89,15 +96,14 @@ async fn write_to_file_then_read() {
     let influx_process = spawn_influx(&test_dir).await;
 
     // Generate Telegraf config
-    let config = TelegrafLineProtocolConfigBuilder::new()
-        .influxdb_url(influx_process.get_host())
-        .token(influx_process.get_token())
-        .organization("influxive")
-        .bucket("influxive")
-        .metrics_file_path(metrics_path.to_str().unwrap())
-        .config_output_path(telegraf_config_path.to_str().unwrap())
-        .build();
-    assert!(config.generate_file().is_ok());
+    let config = TelegrafLineProtocolConfig::new(
+        influx_process.get_host(),
+        influx_process.get_token(),
+        "influxive",
+        "influxive",
+        metrics_path.to_str().unwrap(),
+    );
+    assert!(config.write_to_file(telegraf_config_path.as_path()).is_ok());
 
     // Launch Telegraf
     let mut telegraf_process = TelegrafSvc::new(

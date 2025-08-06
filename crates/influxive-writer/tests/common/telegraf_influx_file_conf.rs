@@ -1,31 +1,49 @@
 use std::fs::File;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub struct TelegrafLineProtocolConfig {
-    pub influxdb_url: String,
-    pub token: String,
-    pub organization: String,
-    pub bucket: String,
-    pub metrics_file_path: PathBuf,
-    pub config_output_path: PathBuf,
+    influxdb_url: String,
+    token: String,
+    organization: String,
+    bucket: String,
+    metrics_file_path: PathBuf,
 }
 
 impl TelegrafLineProtocolConfig {
-    pub fn generate_file(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn new(
+        influxdb_url: &str,
+        token: &str,
+        organization: &str,
+        bucket: &str,
+        metrics_file_path: &str,
+    ) -> Self {
+        Self {
+            influxdb_url: influxdb_url.to_string(),
+            token: token.to_string(),
+            organization: organization.to_string(),
+            bucket: bucket.to_string(),
+            metrics_file_path: PathBuf::from(metrics_file_path),
+        }
+    }
+
+    pub fn write_to_file(
+        &self,
+        config_output_path: &Path,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let config_content = self.build_content();
 
         // Create parent directories if they don't exist
-        if let Some(parent) = self.config_output_path.parent() {
+        if let Some(parent) = config_output_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
 
-        let mut file = File::create(&self.config_output_path)?;
+        let mut file = File::create(config_output_path)?;
         file.write_all(config_content.as_bytes())?;
 
         println!(
             "Telegraf Line Protocol configuration written to: {}",
-            self.config_output_path.as_path().to_string_lossy(),
+            config_output_path.to_string_lossy(),
         );
         Ok(())
     }
@@ -89,60 +107,5 @@ impl TelegrafLineProtocolConfig {
                 .to_string_lossy()
                 .replace('\\', "\\\\"), // escape backslashes for Windows
         )
-    }
-}
-
-/// Builder pattern for easier configuration
-pub struct TelegrafLineProtocolConfigBuilder {
-    config: TelegrafLineProtocolConfig,
-}
-
-impl TelegrafLineProtocolConfigBuilder {
-    /// Constructor
-    pub fn new() -> Self {
-        Self {
-            config: TelegrafLineProtocolConfig {
-                influxdb_url: String::new(),
-                token: String::new(),
-                organization: String::new(),
-                bucket: String::new(),
-                metrics_file_path: PathBuf::from("metrics.influx"),
-                config_output_path: PathBuf::from("telegraf.conf"),
-            },
-        }
-    }
-
-    pub fn influxdb_url(mut self, url: &str) -> Self {
-        self.config.influxdb_url = url.to_string();
-        self
-    }
-
-    pub fn token(mut self, token: &str) -> Self {
-        self.config.token = token.to_string();
-        self
-    }
-
-    pub fn organization(mut self, org: &str) -> Self {
-        self.config.organization = org.to_string();
-        self
-    }
-
-    pub fn bucket(mut self, bucket: &str) -> Self {
-        self.config.bucket = bucket.to_string();
-        self
-    }
-
-    pub fn metrics_file_path(mut self, path: &str) -> Self {
-        self.config.metrics_file_path = PathBuf::from(path);
-        self
-    }
-
-    pub fn config_output_path(mut self, path: &str) -> Self {
-        self.config.config_output_path = PathBuf::from(path);
-        self
-    }
-
-    pub fn build(self) -> TelegrafLineProtocolConfig {
-        self.config
     }
 }
