@@ -106,11 +106,12 @@ async fn write_to_file_then_read() {
     assert!(config.write_to_file(telegraf_config_path.as_path()).is_ok());
 
     // Launch Telegraf
-    let mut telegraf_process = TelegrafSvc::new(
+    let _telegraf_process = TelegrafSvc::spawn(
         telegraf_config_path.to_str().unwrap(),
         test_dir.to_str().unwrap(),
-    );
-    telegraf_process.start().await.unwrap();
+    )
+    .await
+    .unwrap();
 
     // Wait for telegraf to process by querying influxDB every second until we get the expected
     // result or a timeout
@@ -139,6 +140,4 @@ async fn write_to_file_then_read() {
     }
 
     assert_eq!(line_count, 10);
-
-    telegraf_process.stop().await.unwrap();
 }
