@@ -115,7 +115,10 @@ impl DownloadSpec {
             }
         }
 
-        // Fallback to copy() if rename() fails because of an `Invalid cross-device link` error
+        // `tokio::fs::rename()` can fail with an `Invalid cross-device link` error if the
+        // `fallback_path`is on different mount point then the temp folder where the file is
+        // downloaded (`dl_path`). Since `fallback_path` is not constrained to be on the same mount
+        // point, fallback to do copy and remove instead.
         if tokio::fs::rename(&dl_path, &fallback_path).await.is_err() {
             tokio::fs::copy(&dl_path, &fallback_path).await?;
             let _ = tokio::fs::remove_file(&dl_path).await;
