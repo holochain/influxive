@@ -56,7 +56,7 @@ impl Drop for TelegrafSvc {
             println!("Error killing Telegraf: {}", err);
         } else {
             if let Err(err) = self.process.wait() {
-                println!("Error killing Telegraf: {}", err);
+                println!("Error waiting for Telegraf to exit: {}", err);
             } else {
                 println!("Telegraf stopped");
             }
