@@ -59,4 +59,28 @@ let m = opentelemetry_api::global::meter("my.meter")
 m.record(3.14, &[]);
 ```
 
+### Writing to an influx file
+
+```rust
+// create our meter provider
+let meter_provider = influxive::influxive_file_meter_provider(
+    influxive::InfluxiveWriterConfig::create_with_influx_file(std::path::PathBuf::from("my-metrics.influx")),
+    influxive::InfluxiveMeterProviderConfig::default(),
+);
+
+// register our meter provider
+opentelemetry_api::global::set_meter_provider(meter_provider);
+
+// create a metric
+let m = opentelemetry_api::global::meter("my.meter")
+    .f64_histogram("my.metric")
+    .init();
+
+// make a recording
+m.record(3.14, &[]);
+
+// Read and use data in "my-metrics.influx"
+
+```
+
 <!-- cargo-rdme end -->
