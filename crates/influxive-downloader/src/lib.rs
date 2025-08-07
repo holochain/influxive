@@ -129,15 +129,19 @@ impl DownloadSpec {
         let file = tempfile::tempfile()?;
         let mut file = tokio::fs::File::from_std(file);
 
-        let mut data = reqwest::get(self.url)
-            .await
-            .map_err(err_other)?
-            .bytes_stream();
+        let response = reqwest::get(self.url).await.map_err(err_other)?;
+        if !response.status().is_success() {
+            return Err(err_other(format!(
+                "Failed to download file: HTTP {}",
+                response.status()
+            )));
+        }
+
+        let mut data_stream = response.bytes_stream();
         let mut hasher = self.archive_hash.get_hasher();
 
-        while let Some(bytes) = data.next().await {
+        while let Some(bytes) = data_stream.next().await {
             let bytes = bytes.map_err(err_other)?;
-
             hasher.update(&bytes);
 
             let mut reader: &[u8] = &bytes;
