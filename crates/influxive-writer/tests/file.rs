@@ -139,11 +139,10 @@ async fn write_to_file_then_read() {
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
     })
-    .await;
-
-    if let Err(_e) = res {
+    .await
+    .unwrap_or_else(|_| {
         panic!(
             "Error: Test timed out. line_count = {line_count} ; Expected: 10"
-        );
-    }
+        )
+    });
 }
