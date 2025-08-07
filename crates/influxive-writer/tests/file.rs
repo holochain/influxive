@@ -109,35 +109,41 @@ async fn write_to_file_then_read() {
     let _telegraf_process = TelegrafSvc::spawn(
         telegraf_config_path.to_str().unwrap(),
         test_dir.to_str().unwrap(),
+        true,
     )
     .await
     .unwrap();
 
     // Wait for telegraf to process by querying influxDB every second until we get the expected
     // result or a timeout
-    let start = std::time::Instant::now();
     let mut line_count = 0;
-    while start.elapsed() < std::time::Duration::from_secs(20) {
-        let result = influx_process
-            .query(
-                r#"from(bucket: "influxive")
+    let res = tokio::time::timeout(std::time::Duration::from_secs(20), async {
+        loop {
+            let result = influx_process
+                .query(
+                    r#"from(bucket: "influxive")
 |> range(start: -15m, stop: now())
 |> filter(fn: (r) => r["_measurement"] == "my-second-metric")
 |> filter(fn: (r) => r["_field"] == "val")"#,
-            )
-            .await
-            .unwrap();
+                )
+                .await
+                .unwrap();
 
-        line_count = result
-            .split('\n')
-            .filter(|l| l.contains("my-second-metric"))
-            .count();
-        if line_count == 10 {
-            break;
+            line_count = result
+                .split('\n')
+                .filter(|l| l.contains("my-second-metric"))
+                .count();
+            if line_count == 10 {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
+    })
+    .await;
 
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    if let Err(_e) = res {
+        panic!(
+            "Error: Test timed out. line_count = {line_count} ; Expected: 10"
+        );
     }
-
-    assert_eq!(line_count, 10);
 }

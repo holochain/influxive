@@ -73,22 +73,22 @@ impl TelegrafLineProtocolConfig {
 # Configuration for InfluxDB v2 output
 [[outputs.influxdb_v2]]
   ## The URLs of the InfluxDB cluster nodes.
-  urls = ["{}"]
+  urls = ["{url}"]
 
   ## Token for authentication
-  token = "{}"
+  token = "{token}"
 
   ## Organization is the name of the organization you wish to write to
-  organization = "{}"
+  organization = "{org}"
 
   ## Destination bucket to write into
-  bucket = "{}"
+  bucket = "{bucket}"
 
 # Input plugin for reading Line Protocol metrics from file
 [[inputs.file]]
   ## Files to parse each interval. Accept standard unix glob matching rules,
   ## as well as ** to match recursive files and directories.
-  files = ["{}"]
+  files = ["{filepath}"]
 
   ## Data format to consume.
   data_format = "influx"
@@ -98,11 +98,12 @@ impl TelegrafLineProtocolConfig {
   ## to the empty string the encoding will be automatically determined.
   character_encoding = "utf-8"
 "#,
-            self.influxdb_url,
-            self.token,
-            self.organization,
-            self.bucket,
-            self.metrics_file_path
+            url = self.influxdb_url,
+            token = self.token,
+            org = self.organization,
+            bucket = self.bucket,
+            filepath = self
+                .metrics_file_path
                 .as_path()
                 .to_string_lossy()
                 .replace('\\', "\\\\"), // escape backslashes for Windows

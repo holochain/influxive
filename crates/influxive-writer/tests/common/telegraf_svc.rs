@@ -4,13 +4,14 @@ use std::process::Stdio;
 
 /// Spawns and handles a Telegraf child service
 pub struct TelegrafSvc {
-    _process: tokio::process::Child,
+    process: std::process::Child,
 }
 
 impl TelegrafSvc {
     pub async fn spawn(
         config_path: &str,
         fallback_binary_dir: &str,
+        once: bool,
     ) -> std::io::Result<Self> {
         // Ensure binary is available
         let filepath =
@@ -22,17 +23,17 @@ impl TelegrafSvc {
             filepath.to_string_lossy(),
         );
 
-        let child = tokio::process::Command::new(&filepath)
+        let child = std::process::Command::new(&filepath)
             .arg("--config")
             .arg(&config_path)
+            .args(if once { vec!["--once"] } else { vec![] })
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .kill_on_drop(true)
             .spawn()?;
 
         println!("Telegraf started successfully");
 
-        Ok(Self { _process: child })
+        Ok(Self { process: child })
     }
 
     async fn download_telegraf(binary_dir: &str) -> std::io::Result<PathBuf> {
@@ -50,6 +51,15 @@ impl TelegrafSvc {
 
 impl Drop for TelegrafSvc {
     fn drop(&mut self) {
-        println!("Telegraf stopped");
+        println!("Stopping Telegraf...");
+        if let Err(err) = self.process.kill() {
+            println!("Error killing Telegraf: {}", err);
+        } else {
+            if let Err(err) = self.process.wait() {
+                println!("Error killing Telegraf: {}", err);
+            } else {
+                println!("Telegraf stopped");
+            }
+        }
     }
 }
