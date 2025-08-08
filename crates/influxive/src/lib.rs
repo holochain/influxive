@@ -59,6 +59,34 @@
 //! m.record(3.14, &[]);
 //! # }
 //! ```
+//!
+//! ### Writing to an influx file
+//!
+//! ```
+//! # #[tokio::main(flavor = "multi_thread")]
+//! # async fn main() {
+//! // create our meter provider
+//! let meter_provider = influxive::influxive_file_meter_provider(
+//!     influxive::InfluxiveWriterConfig::create_with_influx_file(std::path::PathBuf::from("my-metrics.influx")),
+//!     influxive::InfluxiveMeterProviderConfig::default(),
+//! );
+//!
+//! // register our meter provider
+//! opentelemetry_api::global::set_meter_provider(meter_provider);
+//!
+//! // create a metric
+//! let m = opentelemetry_api::global::meter("my.meter")
+//!     .f64_histogram("my.metric")
+//!     .init();
+//!
+//! // make a recording
+//! m.record(3.14, &[]);
+//!
+//! // Read and use data in "my-metrics.influx"
+//!
+//! # std::fs::remove_file("my-metrics.influx").unwrap();
+//! # }
+//! ```
 
 use std::sync::Arc;
 
@@ -104,3 +132,17 @@ pub fn influxive_external_meter_provider_token_auth<
         InfluxiveWriter::with_token_auth(writer_config, host, bucket, token);
     InfluxiveMeterProvider::new(otel_config, Arc::new(writer))
 }
+
+/// Create an opentelemetry_api MeterProvider ready to provide metrics
+/// to a file on disk.
+pub fn influxive_file_meter_provider(
+    writer_config: InfluxiveWriterConfig,
+    otel_config: InfluxiveMeterProviderConfig,
+) -> InfluxiveMeterProvider {
+    // host/bucket/token are not needed when using a file writer
+    let writer = InfluxiveWriter::with_token_auth(writer_config, "", "", "");
+    InfluxiveMeterProvider::new(otel_config, Arc::new(writer))
+}
+
+#[cfg(test)]
+mod test;
