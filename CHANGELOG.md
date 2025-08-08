@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.5] - 2025-08-08
+
+### Added
+
+- Add support for writing metrics to InfluxDB file format, update README and add tests (#23) by @ddd-mtl in [#23](https://github.com/holochain/influxive/pull/23)
+
+### Changed
+
+- Release integration workflow (#19) by @veeso in [#19](https://github.com/holochain/influxive/pull/19)
+
+### Fixed
+
+- Integration test for influx file writer (#22) by @ddd-mtl in [#22](https://github.com/holochain/influxive/pull/22)
+
+## First-time Contributors
+
+* @ddd-mtl made their first contribution in [#23](https://github.com/holochain/influxive/pull/23)
+
+* @veeso made their first contribution in [#19](https://github.com/holochain/influxive/pull/19)
+
 ## [influxive-writer-v0.0.4-alpha.1] - 2025-02-19
 
 ### Changed
