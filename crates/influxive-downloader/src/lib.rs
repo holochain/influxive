@@ -115,7 +115,15 @@ impl DownloadSpec {
             }
         }
 
-        tokio::fs::rename(&dl_path, &fallback_path).await?;
+        // `tokio::fs::rename()` can fail with an `Invalid cross-device link` error if the
+        // `fallback_path`is on different mount point then the temp folder where the file is
+        // downloaded (`dl_path`). Since `fallback_path` is not constrained to be on the same mount
+        // point, fallback to do copy and remove instead.
+        if tokio::fs::rename(&dl_path, &fallback_path).await.is_err() {
+            tokio::fs::copy(&dl_path, &fallback_path).await?;
+            let _ = tokio::fs::remove_file(&dl_path).await;
+        }
+
         Ok(fallback_path)
     }
 
@@ -313,5 +321,13 @@ mod tests {
         for task in all {
             task.await.unwrap();
         }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn download_in_current_dir() {
+        let tmp =
+            tempfile::tempdir_in(std::env::current_dir().unwrap()).unwrap();
+        println!("{:?}", TEST_TAR.download(tmp.path()).await.unwrap());
+        tmp.close().unwrap();
     }
 }
